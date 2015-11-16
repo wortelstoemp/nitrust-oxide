@@ -12,6 +12,12 @@ use libc::c_void;
 use gl::types::*;
 use sdl2::event::Event;
 use sdl2::keyboard::Keycode;
+use sdl2::video::GLProfile;
+
+use std::mem;
+use std::ptr;
+use std::str;
+use std::ffi::CString;
 
 use core::Clock;
 
@@ -108,6 +114,75 @@ mod math {
 // 	}
 // }
 
+// Vertex data
+static VERTEX_DATA: [GLfloat; 9] = [
+     0.0,  0.5, 0.0,
+     0.5, -0.5, 0.0,
+    -0.5, -0.5, 0.0
+];
+
+// Shader sources
+static VS_SRC: &'static str =
+   "#version 150\n\
+    in vec2 position;\n\
+    void main() {\n\
+       gl_Position = vec4(position, 0.0, 1.0);\n\
+    }";
+
+static FS_SRC: &'static str =
+   "#version 150\n\
+    out vec4 out_color;\n\
+    void main() {\n\
+       out_color = vec4(1.0, 0.5, 0.2, 1.0);\n\
+    }";
+
+fn compile_shader(src: &str, ty: GLenum) -> GLuint {
+    let shader;
+    unsafe {
+        shader = gl::CreateShader(ty);
+        // Attempt to compile the shader
+        let c_str = CString::new(src.as_bytes()).unwrap();
+        gl::ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());
+        gl::CompileShader(shader);
+
+        // Get the compile status
+        let mut status = gl::FALSE as GLint;
+        gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut status);
+
+        // Fail on error
+        if status != (gl::TRUE as GLint) {
+            let mut len = 0;
+            gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
+            let mut buf = Vec::with_capacity(len as usize);
+            buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
+            gl::GetShaderInfoLog(shader, len, ptr::null_mut(), buf.as_mut_ptr() as *mut GLchar);
+            panic!("{}", str::from_utf8(&buf).ok().expect("ShaderInfoLog not valid utf8"));
+        }
+    }
+    shader
+}
+
+fn link_program(vs: GLuint, fs: GLuint) -> GLuint { unsafe {
+    let program = gl::CreateProgram();
+    gl::AttachShader(program, vs);
+    gl::AttachShader(program, fs);
+    gl::LinkProgram(program);
+    // Get the link status
+    let mut status = gl::FALSE as GLint;
+    gl::GetProgramiv(program, gl::LINK_STATUS, &mut status);
+
+    // Fail on error
+    if status != (gl::TRUE as GLint) {
+        let mut len: GLint = 0;
+        gl::GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut len);
+        let mut buf = Vec::with_capacity(len as usize);
+        buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
+        gl::GetProgramInfoLog(program, len, ptr::null_mut(), buf.as_mut_ptr() as *mut GLchar);
+        panic!("{}", str::from_utf8(&buf).ok().expect("ProgramInfoLog not valid utf8"));
+    }
+    program
+} }
+
 fn main() {
 	// let mut testyStr: TestStructB = TestStructB::new();
 	// testyStr.t = Some(TestStructA {x: 0, y: 0});
@@ -116,6 +191,24 @@ fn main() {
 	let sdl_context = sdl2::init().unwrap();
 	let video_subsystem = sdl_context.video().unwrap();
 	video_subsystem.gl_set_swap_interval(1); // If vsync
+	/*
+	if settings.get_vsync() {
+            video_subsystem.gl_set_swap_interval(1);
+        } else {
+            video_subsystem.gl_set_swap_interval(0);
+        }
+	*/
+	let gl_attr = video_subsystem.gl_attr();
+
+    // Not all drivers default to 32bit color, so explicitly set it to 32bit color.
+    gl_attr.set_red_size(8);
+    gl_attr.set_green_size(8);
+    gl_attr.set_blue_size(8);
+    gl_attr.set_alpha_size(8);
+    gl_attr.set_stencil_size(8);
+	gl_attr.set_multisample_samples(8); // 8x MSAA
+    gl_attr.set_context_version(3 as u8, 3 as u8); // OpenGL 3.3
+	gl_attr.set_context_profile(GLProfile::Core);
 
 	let window = video_subsystem.window("Nitrust Oxide", 800, 600)
 		.position_centered()
@@ -124,11 +217,44 @@ fn main() {
 		//.fullscreen()
 		.build()
 		.unwrap();
+
 	let ctx = window.gl_create_context().unwrap();
 	window.gl_make_current(&ctx).unwrap();
 
 	gl::load_with(|name| video_subsystem.gl_get_proc_address(name) as *const _);
+	unsafe {
+		gl::Viewport(0, 0, 800, 600);
+	}
 
+	// Initialize Rendering
+	let vs = compile_shader(VS_SRC, gl::VERTEX_SHADER);
+    let fs = compile_shader(FS_SRC, gl::FRAGMENT_SHADER);
+    let program = link_program(vs, fs);
+
+    let mut vao = 0;
+    let mut vbo = 0;
+
+    unsafe {
+        // Create Vertex Array Object
+        gl::GenVertexArrays(1, &mut vao);
+        gl::BindVertexArray(vao);
+
+        // Create a Vertex Buffer Object and copy the vertex data to it
+        gl::GenBuffers(1, &mut vbo);
+        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+        gl::BufferData(gl::ARRAY_BUFFER,
+                       (VERTEX_DATA.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
+                       mem::transmute(&VERTEX_DATA[0]),
+                       gl::STATIC_DRAW);
+
+		gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE as GLboolean, (3 * mem::size_of::<GLfloat>()) as i32, 0 as *const _);
+		gl::EnableVertexAttribArray(0);
+
+		gl::BindBuffer(gl::ARRAY_BUFFER, 0); 
+		gl::BindVertexArray(0);
+    }
+
+	// Initialize input
 	let mut event_pump = sdl_context.event_pump().unwrap();
 
 	// Initialize clock
@@ -160,11 +286,29 @@ fn main() {
 		// println!("fps: {}", (1.0/dt));
 
 		// Do non fixed stuff
+
+		// Rendering
 		unsafe {
-            gl::ClearColor(0.3, 0.3, 0.3, 1.0);
+			gl::ClearColor(0.2, 0.3, 0.3, 1.0);
             gl::Clear(gl::COLOR_BUFFER_BIT);
+
+			gl::UseProgram(program);
+			gl::BindVertexArray(vao);
+			gl::DrawArrays(gl::TRIANGLES, 0, 3);
+			gl::BindVertexArray(0);
         }
 
 		window.gl_swap_window();
 	}
+
+	// Shutdown
+
+	// Rendering
+	unsafe {
+    	gl::DeleteProgram(program);
+        gl::DeleteShader(fs);
+        gl::DeleteShader(vs);
+        gl::DeleteBuffers(1, &vbo);
+        gl::DeleteVertexArrays(1, &vao);
+    }
 }
