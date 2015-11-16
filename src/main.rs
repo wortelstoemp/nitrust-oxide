@@ -115,10 +115,16 @@ mod math {
 // }
 
 // Vertex data
-static VERTEX_DATA: [GLfloat; 9] = [
-     0.0,  0.5, 0.0,
-     0.5, -0.5, 0.0,
-    -0.5, -0.5, 0.0
+static VERTEX_DATA: [GLfloat; 12] = [
+	0.5, 0.5, 0.0,		// Top Right
+	0.5, -0.5, 0.0,		// Bottom Right
+	-0.5, -0.5, 0.0,	// Bottom Left
+	-0.5, 0.5, 0.0   	// Top Left
+];
+
+static INDICES: [GLuint; 6] = [
+    0, 1, 3,   // First Triangle
+    1, 2, 3    // Second Triangle
 ];
 
 // Shader sources
@@ -133,7 +139,7 @@ static FS_SRC: &'static str =
    "#version 150\n\
     out vec4 out_color;\n\
     void main() {\n\
-       out_color = vec4(1.0, 0.5, 0.2, 1.0);\n\
+       out_color = vec4(1.0, 1.0, 0.0, 1.0);\n\
     }";
 
 fn compile_shader(src: &str, ty: GLenum) -> GLuint {
@@ -233,25 +239,41 @@ fn main() {
 
     let mut vao = 0;
     let mut vbo = 0;
+	let mut ebo = 0;
 
     unsafe {
-        // Create Vertex Array Object
+		// Create Vertex Array Object
         gl::GenVertexArrays(1, &mut vao);
-        gl::BindVertexArray(vao);
 
-        // Create a Vertex Buffer Object and copy the vertex data to it
-        gl::GenBuffers(1, &mut vbo);
-        gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
-        gl::BufferData(gl::ARRAY_BUFFER,
-                       (VERTEX_DATA.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-                       mem::transmute(&VERTEX_DATA[0]),
-                       gl::STATIC_DRAW);
+		gl::BindVertexArray(vao);
+
+		// Create a Vertex Buffer Object and copy the vertex data to it
+		gl::GenBuffers(1, &mut vbo);
+		gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
+		gl::BufferData(gl::ARRAY_BUFFER,
+        	(VERTEX_DATA.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
+            mem::transmute(&VERTEX_DATA[0]),
+            gl::STATIC_DRAW);
+
+		// Create a Element Buffer Object and copy the index data to it
+		gl::GenBuffers(1, &mut ebo);
+		gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
+		gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
+			(INDICES.len() * mem::size_of::<GLuint>()) as GLsizeiptr,
+			mem::transmute(&INDICES[0]),
+			gl::STATIC_DRAW);
 
 		gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE as GLboolean, (3 * mem::size_of::<GLfloat>()) as i32, 0 as *const _);
 		gl::EnableVertexAttribArray(0);
 
-		gl::BindBuffer(gl::ARRAY_BUFFER, 0); 
+		gl::BindBuffer(gl::ARRAY_BUFFER, 0);
 		gl::BindVertexArray(0);
+
+		// Uncomment for wireframe mode
+    	//gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
+
+		// Set state back to filled polygons
+		//gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
     }
 
 	// Initialize input
@@ -294,7 +316,8 @@ fn main() {
 
 			gl::UseProgram(program);
 			gl::BindVertexArray(vao);
-			gl::DrawArrays(gl::TRIANGLES, 0, 3);
+			//gl::DrawArrays(gl::TRIANGLES, 0, 3);
+			gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
 			gl::BindVertexArray(0);
         }
 
@@ -308,6 +331,7 @@ fn main() {
     	gl::DeleteProgram(program);
         gl::DeleteShader(fs);
         gl::DeleteShader(vs);
+		gl::DeleteBuffers(1, &ebo);
         gl::DeleteBuffers(1, &vbo);
         gl::DeleteVertexArrays(1, &vao);
     }
