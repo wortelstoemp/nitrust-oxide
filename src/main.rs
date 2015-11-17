@@ -472,6 +472,26 @@ mod math {
 	}
 
 
+	impl Mul<Quaternion> for Quaternion {
+    	type Output = Quaternion;
+
+    	fn mul(self, r: Quaternion) -> Quaternion {
+			Quaternion {
+				x: self.w * r.x + self.x * r.w + self.y * r.z - self.z * r.y,
+				y: self.w * r.y + self.y * r.w + self.z * r.x - self.x * r.z,
+				z: self.w * r.z + self.z * r.w + self.x * r.y - self.y * r.x,
+				w: self.w * r.w - self.x * r.x - self.y * r.y - self.z * r.z,
+			}
+    	}
+	}
+
+	impl Mul<f32> for Quaternion {
+    	type Output = Quaternion;
+
+		fn mul(self, f: f32) -> Quaternion {
+			Quaternion { x: self.x * f, y: self.y * f, z: self.z * f, w: self.w * f }
+    	}
+	}
 
 	// ____________________________________________________________________________________________
 	// Vec3
