@@ -83,52 +83,60 @@ mod core {
 	}
 }
 
-mod math {
-	pub struct Vec2 {
-		x: f32,
-		y: f32
-	}
+pub struct Vec4 {
+	x: f32,
+	y: f32,
+	z: f32,
+	w: f32,
+}
 
-	impl Vec2 {
-		pub fn new() -> Vec2 {
-			Vec2 { x: 0.0, y: 0.0 }
-		}
+impl Vec4 {
+	pub fn new() -> Vec4 {
+		Vec4 { x: 0.0, y: 0.0, z: 0.0, w: 0.0 }
 	}
 }
 
-// Shader object
-struct Shader<'a> {
+
+// InternalShader object
+pub struct InternalShader<'a> {
 	program: GLuint,
-	uniforms: HashMap<&'a str, i32>,
+	uniforms: HashMap<&'a str, GLint>,
 }
 
-impl<'a> Shader<'a> {
-	pub fn new(vertex_path: &str, fragment_path: &str) -> Shader<'a> {
+impl<'a> InternalShader<'a> {
+	pub fn new() -> InternalShader<'a> {
 		unsafe {
 			let program = gl::CreateProgram();
-			Shader {
+			InternalShader {
 				program: program,
 				uniforms: HashMap::new(),
 			 }
 		}
 	}
 
-	pub fn create_vertex_shader(&self, file: &str) {
-		self.add_shader(file, gl::VERTEX_SHADER);
+	pub fn compile(&self) {
+		unsafe {
+			gl::LinkProgram(self.program);
+			//gl::ValidateProgram(self.program);
+		}
 	}
 
-	pub fn create_fragment_shader(&self, file: &str) {
-		self.add_shader(file, gl::FRAGMENT_SHADER);
+	pub fn vertex_shader(&self, file: &str) {
+		self.add_shader(VS_code, gl::VERTEX_SHADER); // TODO: read file and return code
 	}
 
-	pub fn create_geometry_shader(&self, file: &str) {
-		self.add_shader(file, gl::GEOMETRY_SHADER);
+	pub fn fragment_shader(&self, file: &str) {
+		self.add_shader(FS_code, gl::FRAGMENT_SHADER); // TODO: read file and return code
 	}
 
-	pub fn add_shader(&self, src: &str, ty: GLuint) {
+	pub fn geometry_shader(&self, file: &str) {
+		// self.add_shader(GS_code, gl::GEOMETRY_SHADER); // TODO: read file and return code
+	}
+
+	fn add_shader(&self, code: &str, ty: GLenum) {
 		unsafe {
 			let shader = gl::CreateShader(ty);
-			let c_str = CString::new(src.as_bytes()).unwrap();
+			let c_str = CString::new(code.as_bytes()).unwrap();
 			gl::ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());
 			gl::CompileShader(shader);
 			gl::AttachShader(self.program, shader);
@@ -136,29 +144,94 @@ impl<'a> Shader<'a> {
 		}
 	}
 
-	pub fn compile(&self) {
+	pub fn add_uniform(&mut self, uniform: &'a str) {
 		unsafe {
-			gl::LinkProgram(self.program);
-			gl::ValidateProgram(self.program);
+			let c_str = CString::new(uniform.as_bytes()).unwrap();
+			let uniform_location = gl::GetUniformLocation(self.program, c_str.as_ptr());
+
+			if uniform_location == -1 {
+				panic!("Could not find uniform {}", uniform);
+			}
+
+			self.uniforms.insert(uniform, uniform_location);
 		}
 	}
 
-	pub fn enable(&self) {
+	pub fn set_uniform4f(&self, uniform: &'a str, value: &Vec4)
+	{
+		unsafe {
+			gl::Uniform4f(*self.uniforms.get(uniform).unwrap(), value.x, value.y, value.z, value.w);
+		}
+	}
+
+	pub fn begin(&self) {
 		unsafe {
 			gl::UseProgram(self.program);
 		}
 	}
 
-	pub fn disable(&self) {
+	pub fn end(&self) {
 		unsafe {
 			gl::UseProgram(0);
 		}
 	}
 
-	pub fn dispose(&self) {
+	pub fn delete(&self) {
 		unsafe {
 			gl::DeleteProgram(self.program);
 		}
+	}
+}
+
+pub trait Shader {
+	fn init(&mut self);
+	fn begin(&self);
+	fn end(&self);
+	fn delete(&self);
+	fn update_uniforms(&self);
+	fn set_uniform4f(&self, uniform: &str, value: &Vec4);
+}
+
+pub struct BasicShader<'a> {
+	shader: InternalShader<'a>,
+}
+
+impl<'a> BasicShader<'a> {
+	fn new(vertex_shader_file: &str, fragment_shader_file: &str) -> BasicShader<'a> {
+		let mut shader = InternalShader::new();
+		shader.vertex_shader(vertex_shader_file);
+		shader.fragment_shader(fragment_shader_file);
+
+		BasicShader {
+			shader: shader,
+		}
+	}
+}
+
+impl<'a> Shader for BasicShader<'a> {
+	fn init(&mut self) {
+		self.shader.compile();
+		self.shader.add_uniform("color");
+	}
+
+	fn begin(&self) {
+		self.shader.begin();
+	}
+
+	fn end(&self) {
+		self.shader.end();
+	}
+
+	fn delete(&self) {
+		self.shader.delete();
+	}
+
+	fn update_uniforms(&self) {
+		// TODO: Implement
+	}
+
+	fn set_uniform4f(&self, uniform: &str, value: &Vec4) {
+		self.shader.set_uniform4f(uniform, value);
 	}
 }
 
@@ -176,69 +249,20 @@ static INDICES: [GLuint; 6] = [
 ];
 
 // Shader sources
-static VS_SRC: &'static str =
+static VS_code: &'static str =
    "#version 330 core\n\
 	layout (location = 0) in vec3 position;\n\
-	out vec4 vertexColor;\n\
 	void main() {\n\
 	   gl_Position = vec4(position.x, position.y, position.z, 1.0);\n\
-	   vertexColor = vec4(1.0f, 1.0f, 0.0f, 1.0f);\n\
 	}";
 
-static FS_SRC: &'static str =
+static FS_code: &'static str =
    "#version 330 core\n\
-	in vec4 vertexColor;\n\
 	out vec4 out_color;\n\
+	uniform vec4 color;\n\
 	void main() {\n\
-	   out_color = vertexColor;\n\
+	   out_color = color;\n\
 	}";
-
-fn compile_shader(src: &str, ty: GLenum) -> GLuint {
-	let shader;
-	unsafe {
-		shader = gl::CreateShader(ty);
-		// Attempt to compile the shader
-		let c_str = CString::new(src.as_bytes()).unwrap();
-		gl::ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());
-		gl::CompileShader(shader);
-
-		// Get the compile status
-		let mut status = gl::FALSE as GLint;
-		gl::GetShaderiv(shader, gl::COMPILE_STATUS, &mut status);
-
-		// Fail on error
-		if status != (gl::TRUE as GLint) {
-			let mut len = 0;
-			gl::GetShaderiv(shader, gl::INFO_LOG_LENGTH, &mut len);
-			let mut buf = Vec::with_capacity(len as usize);
-			buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-			gl::GetShaderInfoLog(shader, len, ptr::null_mut(), buf.as_mut_ptr() as *mut GLchar);
-			panic!("{}", str::from_utf8(&buf).ok().expect("ShaderInfoLog not valid utf8"));
-		}
-	}
-	shader
-}
-
-fn link_program(vs: GLuint, fs: GLuint) -> GLuint { unsafe {
-	let program = gl::CreateProgram();
-	gl::AttachShader(program, vs);
-	gl::AttachShader(program, fs);
-	gl::LinkProgram(program);
-	// Get the link status
-	let mut status = gl::FALSE as GLint;
-	gl::GetProgramiv(program, gl::LINK_STATUS, &mut status);
-
-	// Fail on error
-	if status != (gl::TRUE as GLint) {
-		let mut len: GLint = 0;
-		gl::GetProgramiv(program, gl::INFO_LOG_LENGTH, &mut len);
-		let mut buf = Vec::with_capacity(len as usize);
-		buf.set_len((len as usize) - 1); // subtract 1 to skip the trailing null character
-		gl::GetProgramInfoLog(program, len, ptr::null_mut(), buf.as_mut_ptr() as *mut GLchar);
-		panic!("{}", str::from_utf8(&buf).ok().expect("ProgramInfoLog not valid utf8"));
-	}
-	program
-} }
 
 fn main() {
 	// Initialize SDL stuff (later in WindowsSystem)
@@ -282,9 +306,8 @@ fn main() {
 	}
 
 	// Initialize Rendering
-	let vs = compile_shader(VS_SRC, gl::VERTEX_SHADER);
-	let fs = compile_shader(FS_SRC, gl::FRAGMENT_SHADER);
-	let program = link_program(vs, fs);
+	let mut shader = BasicShader::new("basic.vs.glsl", "basic.fs.glsl"); // TODO: change to real files
+	shader.init();
 
 	let mut vao = 0;
 	let mut vbo = 0;
@@ -363,10 +386,13 @@ fn main() {
 			gl::ClearColor(0.2, 0.3, 0.3, 1.0);
 			gl::Clear(gl::COLOR_BUFFER_BIT);
 
-			gl::UseProgram(program);
 			gl::BindVertexArray(vao);
-			//gl::DrawArrays(gl::TRIANGLES, 0, 3);
+
+			shader.begin();
+			shader.set_uniform4f("color", &Vec4{ x: 1.0, y: 1.0, z: 0.0, w: 1.0});
 			gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
+			shader.end();
+
 			gl::BindVertexArray(0);
 		}
 
@@ -377,9 +403,7 @@ fn main() {
 
 	// Rendering
 	unsafe {
-		gl::DeleteProgram(program);
-		gl::DeleteShader(fs);
-		gl::DeleteShader(vs);
+		shader.delete();
 		gl::DeleteBuffers(1, &ebo);
 		gl::DeleteBuffers(1, &vbo);
 		gl::DeleteVertexArrays(1, &vao);
