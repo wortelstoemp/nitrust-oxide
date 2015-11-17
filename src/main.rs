@@ -361,43 +361,42 @@ mod math {
 			self
 		}
 
-		/*
+		// TODO: Make this work
+		// fn slerp(q1: &Quaternion, q2: &Quaternion, amount: f32) -> Quaternion {
+		// 	let epsilon = 1000.0;
+		// 	let mut cos = q1.dot(q2);
+		// 	let mut res = Quaternion{ x: q2.x, y: q2.y, z: q2.z, w: q2.w };
+		//
+		// 	if cos < 0.0 {
+		// 		cos = -cos;
+		// 		res = Quaternion{ x: -(q2.x), y: -(q2.y), z: -(q2.z), w: -(q2.w) };
+		// 	}
+		//
+		// 	if cos.abs() >= (1.0 - epsilon) {
+		// 		return res;
+		// 		// return destination.subtr(q1).mult(amount).add(q1).normalize();
+		// 	}
+		//
+		// 	let sin = (1.0 - cos * cos).sqrt();
+		// 	let angle = sin.atan2(cos);
+		// 	let inv_sin =  1.0 / sin;
+		//
+		// 	let src_factor = ((1.0 - amount) * angle).sin() * inv_sin;
+		// 	let dest_factor = (amount * angle).sin() * inv_sin;
+		//
+		// 	res // q1.mult(sourceFactor).add(destination.mult(destinationFactor));
+		// }
 
-		*/
-		fn slerp(q1: &Quaternion, q2: &Quaternion, amount: f32) -> Quaternion {
-			let epsilon = 1000.0;
-			let mut cos = q1.dot(q2);
-			let mut res = Quaternion{ x: q2.x, y: q2.y, z: q2.z, w: q2.w };
-
-			if cos < 0.0 {
-				cos = -cos;
-				res = Quaternion{ x: -(q2.x), y: -(q2.y), z: -(q2.z), w: -(q2.w) };
-			}
-
-			if cos.abs() >= (1.0 - epsilon) {
-				return res;
-				// return destination.subtr(q1).mult(amount).add(q1).normalize();
-			}
-
-			let sin = (1.0 - cos * cos).sqrt();
-			let angle = sin.atan2(cos);
-			let inv_sin =  1.0 / sin;
-
-			let src_factor = ((1.0 - amount) * angle).sin() * inv_sin;
-			let dest_factor = (amount * angle).sin() * inv_sin;
-
-			res // q1.mult(sourceFactor).add(destination.mult(destinationFactor));
-		}
-
-		fn nlerp(q1: &Quaternion, q2: &Quaternion, amount: f32) -> Quaternion {
-			let mut res = Quaternion {x: q2.x, y: q2.y, z: q2.z, w: q2.w };
-
-			if q1.dot(q2) < 0.0 {
-				res = Quaternion {x: -(q2.x), y: -(q2.y), z: -(q2.z), w: -(q2.w)};
-			}
-
-			res // (((res - q1) * amount) + q1).normalize()
-		}
+		// TODO: Make this work
+		// fn nlerp(q1: Quaternion, q2: Quaternion, amount: f32) -> Quaternion {
+		// 	let mut res = Quaternion {x: q2.x, y: q2.y, z: q2.z, w: q2.w };
+		//
+		// 	if q1.dot(&q2) < 0.0 {
+		// 		res = Quaternion {x: -(q2.x), y: -(q2.y), z: -(q2.z), w: -(q2.w)};
+		// 	}
+		//
+		// 	*((((res - q1) * amount) + q1).normalize())
+		// }
 
 		fn matrix(&self) -> Mat4x4 {
 			let xx2 = 2.0 * self.x * self.x;
