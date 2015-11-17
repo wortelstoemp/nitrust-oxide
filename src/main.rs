@@ -471,6 +471,31 @@ mod math {
 
 	}
 
+	impl Add for Quaternion {
+    	type Output = Quaternion;
+
+    	fn add(self, r: Quaternion) -> Quaternion {
+			Quaternion {
+				x: self.x + r.x,
+				y: self.y + r.y,
+				z: self.z + r.z,
+				w: self.w + r.w,
+			}
+    	}
+	}
+
+	impl Sub for Quaternion {
+    	type Output = Quaternion;
+
+    	fn sub(self, r: Quaternion) -> Quaternion {
+			Quaternion {
+				x: self.x - r.x,
+				y: self.y - r.y,
+				z: self.z - r.z,
+				w: self.w - r.w,
+			}
+    	}
+	}
 
 	impl Mul<Quaternion> for Quaternion {
     	type Output = Quaternion;
