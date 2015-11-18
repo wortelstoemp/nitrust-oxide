@@ -26,6 +26,7 @@ use core::*;
 
 mod core {
 	use time::PreciseTime;
+	use math::*;
 
 	pub struct Clock {
 		current: PreciseTime,
@@ -83,6 +84,12 @@ mod core {
 			(self.accumulator / self.fixed)
 		}
 	}
+
+	pub struct Transform {
+		scale: Vec3,
+		orientation: Quaternion,
+		position: Vec3,
+	}
 }
 
 mod math {
@@ -95,13 +102,13 @@ mod math {
 	}
 
 	impl Mat4x4 {
-		fn new() -> Mat4x4 {
+		pub fn new() -> Mat4x4 {
 			Mat4x4 {
 				m: [0.0; 16],
 			}
 		}
 
-		fn diagonal(&mut self, d: f32) -> &Mat4x4 {
+		pub fn diagonal(&mut self, d: f32) -> &Mat4x4 {
 			self.m = [
 				d, 0.0, 0.0, 0.0,
 				0.0, d, 0.0, 0.0,
@@ -111,7 +118,7 @@ mod math {
 			self
 		}
 
-		fn identity(&mut self) -> &Mat4x4 {
+		pub fn identity(&mut self) -> &Mat4x4 {
 			self.m = [
 				1.0, 0.0, 0.0, 0.0,
 				0.0, 1.0, 0.0, 0.0,
@@ -121,7 +128,7 @@ mod math {
 			self
 		}
 
-		fn transpose(&mut self) -> &Mat4x4 {
+		pub fn transpose(&mut self) -> &Mat4x4 {
 			let t = self.m;
 			self.m = [
 				t[0], t[4], t[8], t[12],
@@ -132,7 +139,7 @@ mod math {
 			self
 		}
 
-		fn translate(&mut self, t: &Vec3) -> &Mat4x4 {
+		pub fn translate(&mut self, t: &Vec3) -> &mut Mat4x4 {
 			self.m = [
 				1.0, 0.0, 0.0, t.x,
 				0.0, 1.0, 0.0, t.y,
@@ -142,17 +149,17 @@ mod math {
 			self
 		}
 
-		fn scale(&mut self, s: &Vec3) -> &Mat4x4 {
+		pub fn scale(&mut self, s: &Vec3) -> &mut Mat4x4 {
 			self.m = [
-				s.x, 0.0, 0.0, 0.0,
-				0.0, s.y, 0.0, 0.0,
-				0.0, 0.0, s.z, 0.0,
-				0.0, 0.0, 0.0, 1.0,
+					s.x, 0.0, 0.0, 0.0,
+					0.0, s.y, 0.0, 0.0,
+					0.0, 0.0, s.z, 0.0,
+					0.0, 0.0, 0.0, 1.0,
 			];
 			self
 		}
 
-		fn mirror(&mut self) -> &Mat4x4 {
+		pub fn mirror(&mut self) -> &mut Mat4x4 {
 			self.m = [
 				-1.0, 0.0, 0.0, 0.0,
 				0.0, -1.0, 0.0, 0.0,
@@ -164,7 +171,7 @@ mod math {
 
 		// TODO: rotate()
 
-		fn ortho(&mut self, left: f32, right: f32, bottom: f32, top: f32, z_near: f32, z_far: f32) -> &Mat4x4 {
+		pub fn ortho(&mut self, left: f32, right: f32, bottom: f32, top: f32, z_near: f32, z_far: f32) -> &Mat4x4 {
 			let width = right - left;
 			let height = top - bottom;
 			let depth = z_far - z_near;
@@ -178,7 +185,7 @@ mod math {
 			self
 		}
 
-		fn perspective(&mut self, fovy: f32, aspect_ratio: f32, z_near: f32, z_far: f32) -> &Mat4x4 {
+		pub fn perspective(&mut self, fovy: f32, aspect_ratio: f32, z_near: f32, z_far: f32) -> &Mat4x4 {
 			let rad: f32 = (fovy / 2.0) * PI / 180.0;
 			let y_scale: f32 = 1.0 / rad.tan();
 			let x_scale: f32 = y_scale / aspect_ratio;
@@ -193,7 +200,7 @@ mod math {
 			self
 		}
 
-		fn look_at(&mut self, eye: &Vec3, look: &Vec3, up: &Vec3) -> &Mat4x4 {
+		pub fn look_at(&mut self, eye: &Vec3, look: &Vec3, up: &Vec3) -> &Mat4x4 {
 			let l = look.normalized();
 			let r = look.cross(up);
 			let u = l.cross(&r).normalized();
@@ -215,7 +222,7 @@ mod math {
 			self
 		}
 
-		fn camera(&mut self, position: &Vec3, orientation: &Quaternion) -> &Mat4x4 {
+		pub fn camera(&mut self, position: &Vec3, orientation: &Quaternion) -> &Mat4x4 {
 			let r = orientation.right();
 			let u = orientation.up();
 			let f = orientation.forward();
@@ -700,7 +707,7 @@ mod math {
 		type Output = Vec3;
 
 		fn div(self, r: f32) -> Vec3 {
-			let inv = if (r != 0.0) { 1.0 / r } else { f32::MAX };
+			let inv = if r != 0.0 { 1.0 / r } else { f32::MAX };
 			Vec3 { x: self.x * inv, y: self.y * inv, z: self.z * inv }
 		}
 	}
@@ -729,8 +736,6 @@ mod math {
 	}
 }
 
-
-// InternalShader object
 pub struct InternalShader<'a> {
 	program: GLuint,
 	uniforms: HashMap<&'a str, GLint>,
@@ -758,8 +763,9 @@ impl<'a> InternalShader<'a> {
 		let code =
 		"#version 330 core\n\
 	 	layout (location = 0) in vec3 position;\n\
+		uniform mat4 transform;\n\
 	 	void main() {\n\
-	 	   gl_Position = vec4(position.x, position.y, position.z, 1.0);\n\
+	 	   gl_Position = transform * vec4(position.x, position.y, position.z, 1.0);\n\
 	 	}";
 		self.add_shader(code, gl::VERTEX_SHADER); // TODO: read file and return code
 	}
@@ -804,10 +810,37 @@ impl<'a> InternalShader<'a> {
 		}
 	}
 
-	pub fn set_uniform4f(&self, uniform: &'a str, value: &Vec4)
-	{
+	pub fn set_bool(&self, uniform: &'a str, value: bool) {
+        unsafe {
+			gl::Uniform1i(*self.uniforms.get(uniform).unwrap(),
+				match value {
+					true => 1,
+					false => 0
+				});
+		}
+    }
+
+	pub fn set_i32(&self, uniform: &'a str, value: i32) {
+		unsafe {
+			gl::Uniform1i(*self.uniforms.get(uniform).unwrap(), value);
+		}
+	}
+
+	pub fn set_f32(&self, uniform: &'a str, value: f32) {
+		unsafe {
+			gl::Uniform1f(*self.uniforms.get(uniform).unwrap(), value);
+		}
+	}
+
+	pub fn set_vec4(&self, uniform: &'a str, value: &Vec4) {
 		unsafe {
 			gl::Uniform4f(*self.uniforms.get(uniform).unwrap(), value.x, value.y, value.z, value.w);
+		}
+	}
+
+	pub fn set_mat4x4(&self, uniform: &'a str, value: &Mat4x4) {
+		unsafe {
+            gl::UniformMatrix4fv(*self.uniforms.get(uniform).unwrap(), 1, gl::FALSE, std::mem::transmute(value));
 		}
 	}
 
@@ -822,35 +855,39 @@ impl<'a> InternalShader<'a> {
 			gl::UseProgram(0);
 		}
 	}
+}
 
-	pub fn delete(&self) {
-		unsafe {
+impl<'a> Drop for InternalShader<'a> {
+    fn drop(&mut self) {
+        unsafe {
 			gl::DeleteProgram(self.program);
-		}
-	}
+		};
+    }
 }
 
 pub trait Shader {
 	fn init(&mut self);
 	fn begin(&self);
 	fn end(&self);
-	fn delete(&self);
 	fn update_uniforms(&self, dt: f32);
-	fn set_uniform4f(&self, uniform: &str, value: &Vec4);
 }
 
 pub struct BasicShader<'a> {
 	shader: InternalShader<'a>,
+	UNIFORM_COLOR: &'a str,
+	UNIFORM_TRANSFORM: &'a str,
 }
 
 impl<'a> BasicShader<'a> {
 	fn new(vertex_shader_file: &str, fragment_shader_file: &str) -> BasicShader<'a> {
-		let mut shader = InternalShader::new();
+		let shader = InternalShader::new();
 		shader.vertex_shader(vertex_shader_file);
 		shader.fragment_shader(fragment_shader_file);
 
 		BasicShader {
 			shader: shader,
+			UNIFORM_COLOR: "color",
+			UNIFORM_TRANSFORM: "transform",
 		}
 	}
 }
@@ -858,7 +895,8 @@ impl<'a> BasicShader<'a> {
 impl<'a> Shader for BasicShader<'a> {
 	fn init(&mut self) {
 		self.shader.compile();
-		self.shader.add_uniform("color");
+		self.shader.add_uniform(self.UNIFORM_COLOR);
+		self.shader.add_uniform(self.UNIFORM_TRANSFORM);
 	}
 
 	fn begin(&self) {
@@ -869,16 +907,12 @@ impl<'a> Shader for BasicShader<'a> {
 		self.shader.end();
 	}
 
-	fn delete(&self) {
-		self.shader.delete();
-	}
-
 	fn update_uniforms(&self, dt: f32) {
-		self.set_uniform4f("color", &Vec4{ x: 1.0, y: 1.0, z: 0.0, w: 1.0});
-	}
-
-	fn set_uniform4f(&self, uniform: &str, value: &Vec4) {
-		self.shader.set_uniform4f(uniform, value);
+		// Unique implementation
+		self.shader.set_vec4(self.UNIFORM_COLOR, &Vec4{ x: 1.0, y: 1.0, z: 0.0, w: 1.0});
+		let mut transform = Mat4x4::new();
+		transform.scale(&Vec3{ x: 0.5, y: 0.5, z: 0.5 });
+		self.shader.set_mat4x4(self.UNIFORM_TRANSFORM, &transform);
 	}
 }
 
@@ -1034,7 +1068,6 @@ fn main() {
 
 	// Rendering
 	unsafe {
-		shader.delete();
 		gl::DeleteBuffers(1, &ebo);
 		gl::DeleteBuffers(1, &vbo);
 		gl::DeleteVertexArrays(1, &vao);
