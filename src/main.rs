@@ -337,9 +337,9 @@ mod math {
 		}
 
 		pub fn from_axis(&mut self, axis: &Vec3, angle: f32) -> &Quaternion {
-			let half_rad: f32 = angle * PI / 360.0;
-			let half_sin: f32 = half_rad.sin();
-			let half_cos: f32 = half_rad.cos();
+			let half_rad = angle * PI / 360.0;
+			let half_sin = half_rad.sin();
+			let half_cos = half_rad.cos();
 
 			self.x = axis.x * half_sin;
 			self.y = axis.y * half_sin;
@@ -349,39 +349,43 @@ mod math {
 			self
 		}
 
-		// TODO: make this work
 		pub fn from_euler(&mut self, angles: &Vec3) -> &Quaternion {
 			let rx = angles.x * PI / 360.0;
 			let ry = angles.y * PI / 360.0;
 			let rz = angles.z * PI / 360.0;
 
-			let sin_pitch = rx.sin();
-			let cos_pitch = rx.cos();
-			let sin_yaw = ry.sin();
-			let cos_yaw = ry.cos();
-			let sin_roll = rz.sin();
-			let cos_roll = rz.cos();
-			let cos_yaw_cos_roll = cos_yaw * cos_roll;
-			let cos_yaw_sin_roll = cos_yaw * sin_roll;
-			let sin_yaw_sin_roll = sin_yaw * sin_roll;
-			let sin_yaw_cos_roll = sin_yaw * cos_roll;
+			let sin_x = rx.sin();
+			let sin_y = ry.sin();
+			let sin_z = rz.sin();
 
-			self.x = -sin_pitch * cos_yaw_cos_roll - cos_pitch * sin_yaw_sin_roll;
-			self.y = -cos_pitch * sin_yaw_cos_roll + sin_pitch * cos_yaw_sin_roll;
-			self.z = -cos_pitch * cos_yaw_sin_roll - sin_pitch * sin_yaw_cos_roll;
-			self.w =  cos_pitch * cos_yaw_cos_roll - sin_pitch * sin_yaw_sin_roll;
+			let cos_x = rx.cos();
+			let cos_y = ry.cos();
+			let cos_z = rz.cos();
 
-			self
+			let sin_x_sin_y = sin_x * sin_y;
+			let cos_x_cos_y = cos_x * cos_y;
+			let cos_x_sin_y = cos_x * sin_y;
+			let cos_y_sin_x = cos_y * sin_x;
+
+			self.x = cos_x_sin_y * sin_z + cos_y_sin_x * cos_z;
+			self.y = cos_x_sin_y * cos_z + cos_y_sin_x * sin_z;
+			self.z = cos_x_cos_y * sin_z - sin_x_sin_y * cos_z;
+			self.w = cos_x_cos_y * cos_z - sin_x_sin_y * sin_z;
+
+			self.normalize()
 		}
 
-		pub fn rotate(&mut self, axis: &Vec3, angle: f32) -> &Quaternion {
-			let half_rad: f32 = angle * PI / 360.0;
-			let half_sin: f32 = half_rad.sin();
-			let half_cos: f32 = half_rad.cos();
 
-			let rx = -axis.x * half_sin;
-			let ry = -axis.y * half_sin;
-			let rz = -axis.z * half_sin;
+		pub fn rotate(&mut self, axis: &Vec3, angle: f32) -> &Quaternion {
+			let half_rad = angle * PI / 360.0;
+			let half_sin = half_rad.sin();
+			let half_cos = half_rad.cos();
+
+			let axis_norm = axis.normalized();
+
+			let rx = -axis_norm.x * half_sin;
+			let ry = -axis_norm.y * half_sin;
+			let rz = -axis_norm.z * half_sin;
 			let rw = half_cos;
 
 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
@@ -393,7 +397,7 @@ mod math {
 			 	rw * w - rx * x - ry * y - rz * z
 			);
 
-			self
+			self.normalize()
 		}
 
 		pub fn normalized(&self) -> Quaternion {
@@ -960,7 +964,8 @@ impl<'a> Shader for BasicShader<'a> {
 		let mut transform = Mat4x4::new();
 		transform.scale(&Vec3{ x: 0.5, y: 0.5, z: 0.5 });
 		let mut orientation = Quaternion::new();
-		orientation.rotate(&Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0);
+		//orientation.rotate(&Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0);
+		orientation.from_euler(&Vec3{ x: 0.0, y: 0.0, z: 45.0 });
 		transform = orientation.matrix() * transform;
 		transform.translate(&Vec3{ x: 0.5, y: -0.5, z: 0.0 });
 		self.shader.set_mat4x4(self.UNIFORM_TRANSFORM, &transform);
