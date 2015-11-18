@@ -324,11 +324,11 @@ mod math {
 	}
 
 	impl Quaternion {
-		fn new() -> Quaternion {
+		pub fn new() -> Quaternion {
 			Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0, }
 		}
 
-		fn set(&mut self, x: f32, y: f32, z: f32, w: f32) -> &Quaternion {
+		pub fn set(&mut self, x: f32, y: f32, z: f32, w: f32) -> &Quaternion {
 			self.x = x;
 			self.y = y;
 			self.z = z;
@@ -336,7 +336,7 @@ mod math {
 			self
 		}
 
-		fn from_axis(&mut self, axis: &Vec3, angle: f32) -> &Quaternion {
+		pub fn from_axis(&mut self, axis: &Vec3, angle: f32) -> &Quaternion {
 			let half_rad: f32 = angle * PI / 360.0;
 			let half_sin: f32 = half_rad.sin();
 			let half_cos: f32 = half_rad.cos();
@@ -349,17 +349,18 @@ mod math {
 			self
 		}
 
-		fn from_euler(&mut self, angles: &Vec3) -> &Quaternion {
-			let rx = angles.x * PI / 180.0;
-			let ry = angles.y * PI / 180.0;
-			let rz = angles.z * PI / 180.0;
+		// TODO: make this work
+		pub fn from_euler(&mut self, angles: &Vec3) -> &Quaternion {
+			let rx = angles.x * PI / 360.0;
+			let ry = angles.y * PI / 360.0;
+			let rz = angles.z * PI / 360.0;
 
-			let sin_pitch = (rx * 0.5).sin();
-			let cos_pitch = (rx * 0.5).cos();
-			let sin_yaw = (ry * 0.5).sin();
-			let cos_yaw = (ry * 0.5).cos();
-			let sin_roll = (rz * 0.5).sin();
-			let cos_roll = (rz * 0.5).cos();
+			let sin_pitch = rx.sin();
+			let cos_pitch = rx.cos();
+			let sin_yaw = ry.sin();
+			let cos_yaw = ry.cos();
+			let sin_roll = rz.sin();
+			let cos_roll = rz.cos();
 			let cos_yaw_cos_roll = cos_yaw * cos_roll;
 			let cos_yaw_sin_roll = cos_yaw * sin_roll;
 			let sin_yaw_sin_roll = sin_yaw * sin_roll;
@@ -373,7 +374,7 @@ mod math {
 			self
 		}
 
-		fn rotate(&mut self, axis: &Vec3, angle: f32) -> &Quaternion {
+		pub fn rotate(&mut self, axis: &Vec3, angle: f32) -> &Quaternion {
 			let half_rad: f32 = angle * PI / 360.0;
 			let half_sin: f32 = half_rad.sin();
 			let half_cos: f32 = half_rad.cos();
@@ -395,7 +396,7 @@ mod math {
 			self
 		}
 
-		fn normalized(&self) -> Quaternion {
+		pub fn normalized(&self) -> Quaternion {
 			let inv_length = 1.0 / self.length();
 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
 			Quaternion {
@@ -406,7 +407,7 @@ mod math {
 			}
 		}
 
-		fn normalize(&mut self) -> &Quaternion {
+		pub fn normalize(&mut self) -> &Quaternion {
 			let inv_length = 1.0 / self.length();
 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
 			self.set(
@@ -419,19 +420,19 @@ mod math {
 			self
 		}
 
-		fn length(&self) -> f32 {
+		pub fn length(&self) -> f32 {
 			(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w).sqrt()
 		}
 
-		fn length_squared(&self) -> f32 {
+		pub fn length_squared(&self) -> f32 {
 			self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w
 		}
 
-		fn dot(&self, q: &Quaternion) -> f32  {
+		pub fn dot(&self, q: &Quaternion) -> f32  {
 			self.x * q.x + self.y * q.y + self.z * q.z + self.w * q.w
 		}
 
-		fn conjugate(&mut self) -> &Quaternion {
+		pub fn conjugate(&mut self) -> &Quaternion {
 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
 			self.x = -x;
 			self.y = -y;
@@ -440,7 +441,7 @@ mod math {
 			self
 		}
 
-		fn inverse(&mut self) -> &Quaternion {
+		pub fn inverse(&mut self) -> &Quaternion {
 			let inv_length_squared = 1.0 / (self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w);
 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
 			self.set(
@@ -454,7 +455,7 @@ mod math {
 		}
 
 		// TODO: Make this work
-		// fn slerp(q1: &Quaternion, q2: &Quaternion, amount: f32) -> Quaternion {
+		// pub fn slerp(q1: &Quaternion, q2: &Quaternion, amount: f32) -> Quaternion {
 		// 	let epsilon = 1000.0;
 		// 	let mut cos = q1.dot(q2);
 		// 	let mut res = Quaternion{ x: q2.x, y: q2.y, z: q2.z, w: q2.w };
@@ -480,7 +481,7 @@ mod math {
 		// }
 
 		// TODO: Make this work
-		// fn nlerp(q1: Quaternion, q2: Quaternion, amount: f32) -> Quaternion {
+		// pub fn nlerp(q1: Quaternion, q2: Quaternion, amount: f32) -> Quaternion {
 		// 	let mut res = Quaternion {x: q2.x, y: q2.y, z: q2.z, w: q2.w };
 		//
 		// 	if q1.dot(&q2) < 0.0 {
@@ -490,7 +491,7 @@ mod math {
 		// 	*((((res - q1) * amount) + q1).normalize())
 		// }
 
-		fn matrix(&self) -> Mat4x4 {
+		pub fn matrix(&self) -> Mat4x4 {
 			let xx2 = 2.0 * self.x * self.x;
 			let xy2 = 2.0 * self.x * self.y;
 			let xz2 = 2.0 * self.x * self.z;
@@ -512,7 +513,7 @@ mod math {
 
 		}
 
-		fn forward(&self) -> Vec3 {
+		pub fn forward(&self) -> Vec3 {
 			Vec3 {
 				x: 2.0 * self.x * self.z + 2.0 * self.y * self.w,
 				y: 2.0 * self.y * self.x - 2.0 * self.x * self.w,
@@ -520,7 +521,7 @@ mod math {
 			}
 		}
 
-		fn backward(&self) -> Vec3 {
+		pub fn backward(&self) -> Vec3 {
 			Vec3 {
 				x: -2.0 * self.x * self.z - 2.0 * self.y * self.w,
 				y: -2.0 * self.y * self.x + 2.0 * self.x * self.w,
@@ -528,7 +529,7 @@ mod math {
 			}
 		}
 
-		fn up(&self) -> Vec3 {
+		pub fn up(&self) -> Vec3 {
 			Vec3 {
 				x: 2.0 * self.x * self.y - 2.0 * self.z * self.w,
 				y: 1.0 - (2.0 * self.x * self.x + 2.0 * self.z * self.z),
@@ -536,7 +537,7 @@ mod math {
 			}
 		}
 
-		fn down(&self) -> Vec3 {
+		pub fn down(&self) -> Vec3 {
 			Vec3 {
 				x: -2.0 * self.x * self.y + 2.0 * self.z * self.w,
 				y: -1.0 + (2.0 * self.x * self.x + 2.0 * self.z * self.z),
@@ -544,7 +545,7 @@ mod math {
 			}
 		}
 
-		fn right(&self) -> Vec3 {
+		pub fn right(&self) -> Vec3 {
 			Vec3 {
 				x: -1.0 + (2.0 * self.y * self.y + 2.0 * self.z * self.z),
 				y: -2.0 * self.x * self.y - 2.0 * self.z * self.w,
@@ -552,7 +553,7 @@ mod math {
 			}
 		}
 
-		fn left(&self) -> Vec3 {
+		pub fn left(&self) -> Vec3 {
 			Vec3 {
 				x: 1.0 - (2.0 * self.y * self.y + 2.0 * self.z * self.z),
 				y: 2.0 * self.x * self.y + 2.0 * self.z * self.w,
@@ -958,6 +959,9 @@ impl<'a> Shader for BasicShader<'a> {
 		self.shader.set_vec4(self.UNIFORM_COLOR, &Vec4{ x: 1.0, y: 1.0, z: 0.0, w: 1.0});
 		let mut transform = Mat4x4::new();
 		transform.scale(&Vec3{ x: 0.5, y: 0.5, z: 0.5 });
+		let mut orientation = Quaternion::new();
+		orientation.rotate(&Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0);
+		transform = orientation.matrix() * transform;
 		transform.translate(&Vec3{ x: 0.5, y: -0.5, z: 0.0 });
 		self.shader.set_mat4x4(self.UNIFORM_TRANSFORM, &transform);
 	}
