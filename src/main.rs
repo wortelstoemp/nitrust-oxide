@@ -104,7 +104,12 @@ mod math {
 	impl Mat4x4 {
 		pub fn new() -> Mat4x4 {
 			Mat4x4 {
-				m: [0.0; 16],
+				m: [
+					1.0, 0.0, 0.0, 0.0,
+					0.0, 1.0, 0.0, 0.0,
+					0.0, 0.0, 1.0, 0.0,
+					0.0, 0.0, 0.0, 1.0,
+				],
 			}
 		}
 
@@ -128,7 +133,7 @@ mod math {
 			self
 		}
 
-		pub fn transpose(&mut self) -> &Mat4x4 {
+		pub fn transpose(&mut self) -> &mut Mat4x4 {
 			let t = self.m;
 			self.m = [
 				t[0], t[4], t[8], t[12],
@@ -140,32 +145,41 @@ mod math {
 		}
 
 		pub fn translate(&mut self, t: &Vec3) -> &mut Mat4x4 {
-			self.m = [
+			let me: Mat4x4 = Mat4x4 { m: self.m };
+			let translate = Mat4x4 { m: [
 				1.0, 0.0, 0.0, t.x,
 				0.0, 1.0, 0.0, t.y,
 				0.0, 0.0, 1.0, t.z,
 				0.0, 0.0, 0.0, 1.0,
-			];
+			]} * me;
+
+			self.m = translate.m;
 			self
 		}
 
 		pub fn scale(&mut self, s: &Vec3) -> &mut Mat4x4 {
-			self.m = [
-					s.x, 0.0, 0.0, 0.0,
-					0.0, s.y, 0.0, 0.0,
-					0.0, 0.0, s.z, 0.0,
-					0.0, 0.0, 0.0, 1.0,
-			];
+			let me: Mat4x4 = Mat4x4 { m: self.m };
+			let scale = Mat4x4 { m: [
+				s.x, 0.0, 0.0, 0.0,
+				0.0, s.y, 0.0, 0.0,
+				0.0, 0.0, s.z, 0.0,
+				0.0, 0.0, 0.0, 1.0,
+			]} * me;
+
+			self.m = scale.m;
 			self
 		}
 
 		pub fn mirror(&mut self) -> &mut Mat4x4 {
-			self.m = [
+			let me: Mat4x4 = Mat4x4 { m: self.m };
+			let mirror = Mat4x4 { m: [
 				-1.0, 0.0, 0.0, 0.0,
 				0.0, -1.0, 0.0, 0.0,
 				0.0, 0.0, -1.0, 0.0,
 				0.0, 0.0, 0.0, 1.0,
-			];
+			]} * me;
+
+			self.m = mirror.m;
 			self
 		}
 
@@ -265,6 +279,38 @@ mod math {
 				self.m[12] - o.m[12], self.m[13] - o.m[13], self.m[14] - o.m[14], self.m[15] - o.m[15],
 			];
 			res
+		}
+	}
+
+	impl Mul<Mat4x4> for Mat4x4 {
+		type Output = Mat4x4;
+
+		fn mul(self, r: Mat4x4) -> Mat4x4 {
+			Mat4x4 { m: [
+				// Row 0
+				self.m[0] * r.m[0] + self.m[3] * r.m[12] + self.m[1] * r.m[4] + self.m[2] * r.m[8],
+				self.m[0] * r.m[1] + self.m[3] * r.m[13] + self.m[1] * r.m[5] + self.m[2] * r.m[9],
+				self.m[2] * r.m[10] + self.m[3] * r.m[14] + self.m[0] * r.m[2] + self.m[1] * r.m[6],
+				self.m[2] * r.m[11] + self.m[3] * r.m[15] + self.m[0] * r.m[3] + self.m[1] * r.m[7],
+
+				// Row 1
+				self.m[4] * r.m[0] + self.m[7] * r.m[12] + self.m[5] * r.m[4] + self.m[6] * r.m[8],
+				self.m[4] * r.m[1] + self.m[7] * r.m[13] + self.m[5] * r.m[5] + self.m[6] * r.m[9],
+				self.m[6] * r.m[10] + self.m[7] * r.m[14] + self.m[4] * r.m[2] + self.m[5] * r.m[6],
+				self.m[6] * r.m[11] + self.m[7] * r.m[15] + self.m[4] * r.m[3] + self.m[5] * r.m[7],
+
+				// Row 2
+				self.m[8] * r.m[0] + self.m[11] * r.m[12] + self.m[9] * r.m[4] + self.m[10] * r.m[8],
+				self.m[8] * r.m[1] + self.m[11] * r.m[13] + self.m[9] * r.m[5] + self.m[10] * r.m[9],
+				self.m[10] * r.m[10] + self.m[11] * r.m[14] + self.m[8] * r.m[2] + self.m[9] * r.m[6],
+				self.m[10] * r.m[11] + self.m[11] * r.m[15] + self.m[8] * r.m[3] + self.m[9] * r.m[7],
+
+				// Row 3
+				self.m[12] * r.m[0] + self.m[15] * r.m[12] + self.m[13] * r.m[4] + self.m[14] * r.m[8],
+				self.m[12] * r.m[1] + self.m[15] * r.m[13] + self.m[13] * r.m[5] + self.m[14] * r.m[9],
+				self.m[14] * r.m[10] + self.m[15] * r.m[14] + self.m[12] * r.m[2] + self.m[13] * r.m[6],
+				self.m[14] * r.m[11] + self.m[15] * r.m[15] + self.m[12] * r.m[3] + self.m[13] * r.m[7],
+			]}
 		}
 	}
 
@@ -840,7 +886,7 @@ impl<'a> InternalShader<'a> {
 
 	pub fn set_mat4x4(&self, uniform: &'a str, value: &Mat4x4) {
 		unsafe {
-            gl::UniformMatrix4fv(*self.uniforms.get(uniform).unwrap(), 1, gl::FALSE, std::mem::transmute(value));
+            gl::UniformMatrix4fv(*self.uniforms.get(uniform).unwrap(), 1, gl::TRUE, std::mem::transmute(value));
 		}
 	}
 
@@ -912,6 +958,7 @@ impl<'a> Shader for BasicShader<'a> {
 		self.shader.set_vec4(self.UNIFORM_COLOR, &Vec4{ x: 1.0, y: 1.0, z: 0.0, w: 1.0});
 		let mut transform = Mat4x4::new();
 		transform.scale(&Vec3{ x: 0.5, y: 0.5, z: 0.5 });
+		transform.translate(&Vec3{ x: 0.5, y: -0.5, z: 0.0 });
 		self.shader.set_mat4x4(self.UNIFORM_TRANSFORM, &transform);
 	}
 }
