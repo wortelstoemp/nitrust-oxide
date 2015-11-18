@@ -356,7 +356,7 @@ mod math {
 
 			let sin_x = rx.sin();
 			let sin_y = ry.sin();
-			let sin_z = rz.sin();
+			let sin_z = -rz.sin();
 
 			let cos_x = rx.cos();
 			let cos_y = ry.cos();
@@ -964,8 +964,7 @@ impl<'a> Shader for BasicShader<'a> {
 		let mut transform = Mat4x4::new();
 		transform.scale(&Vec3{ x: 0.5, y: 0.5, z: 0.5 });
 		let mut orientation = Quaternion::new();
-		//orientation.rotate(&Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0);
-		orientation.from_euler(&Vec3{ x: 0.0, y: 0.0, z: 45.0 });
+		orientation.rotate(&Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0);
 		transform = orientation.matrix() * transform;
 		transform.translate(&Vec3{ x: 0.5, y: -0.5, z: 0.0 });
 		self.shader.set_mat4x4(self.UNIFORM_TRANSFORM, &transform);
