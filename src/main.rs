@@ -170,11 +170,11 @@ mod math {
 			let depth = z_far - z_near;
 
 			self.m = [
-    			2.0/width, 0.0, 0.0, -(right+left)/width,
-    			0.0, 2.0/height, 0.0, -(top+bottom)/height,
-    			0.0, 0.0, -2.0/depth, -(z_far + z_near)/depth,
-    			0.0, 0.0, 0.0, 0.0,
-    		];
+				2.0/width, 0.0, 0.0, -(right+left)/width,
+				0.0, 2.0/height, 0.0, -(top+bottom)/height,
+				0.0, 0.0, -2.0/depth, -(z_far + z_near)/depth,
+				0.0, 0.0, 0.0, 0.0,
+			];
 			self
 		}
 
@@ -199,33 +199,33 @@ mod math {
 			let u = l.cross(&r).normalized();
 
 			//	Calculation of camera matrix:
-			//    	      Orientationmatrix		*	  Translationmatrix
-			//    	|right.x  up.x  -look.x  0|	          |1 0 0 -eye.x|
-			//    	|right.y  up.y  -look.y  0|		      |0 1 0 -eye.x|
-			//    	|right.z  up.z  -look.z  0|		      |0 0 1 -eye.x|
-			//      |0 		  0 	0 	     1|			  |0 0 0  1    |
+			//			  Orientationmatrix		*	  Translationmatrix
+			//		|right.x  up.x  -look.x  0|			  |1 0 0 -eye.x|
+			//		|right.y  up.y  -look.y  0|			  |0 1 0 -eye.x|
+			//		|right.z  up.z  -look.z  0|			  |0 0 1 -eye.x|
+			//	  |0 		  0 	0 		 1|			  |0 0 0  1	|
 
 			self.m = [
-    				r.x, u.x, -l.x, -r.x * eye.x - u.x *eye.y + l.x *eye.z,
-    				r.y, u.y, -l.y, -r.y * eye.x - u.y *eye.y + l.y *eye.z,
-    				r.z, u.z, -l.z, -r.z * eye.x - u.z *eye.y + l.z *eye.z,
-    				0.0, 0.0, 0.0, 1.0,
-    			];
+					r.x, u.x, -l.x, -r.x * eye.x - u.x *eye.y + l.x *eye.z,
+					r.y, u.y, -l.y, -r.y * eye.x - u.y *eye.y + l.y *eye.z,
+					r.z, u.z, -l.z, -r.z * eye.x - u.z *eye.y + l.z *eye.z,
+					0.0, 0.0, 0.0, 1.0,
+				];
 
 			self
 		}
-		
+
 		fn camera(&mut self, position: &Vec3, orientation: &Quaternion) -> &Mat4x4 {
 			let r = orientation.right();
 			let u = orientation.up();
 			let f = orientation.forward();
 
 			self.m = [
-    				r.x, r.y, r.z, -r.x * position.x - r.y * position.y - r.z * position.z,
-    				u.x, u.y, u.z, -u.x * position.x - u.y * position.y - u.z * position.z,
-    				f.x, f.y, f.z, -f.x * position.x - f.y * position.y - f.z * position.z,
-    				0.0, 0.0, 0.0, 1.0,
-    			];
+					r.x, r.y, r.z, -r.x * position.x - r.y * position.y - r.z * position.z,
+					u.x, u.y, u.z, -u.x * position.x - u.y * position.y - u.z * position.z,
+					f.x, f.y, f.z, -f.x * position.x - f.y * position.y - f.z * position.z,
+					0.0, 0.0, 0.0, 1.0,
+				];
 
 			self
 		}
@@ -313,9 +313,9 @@ mod math {
 			let sin_yaw_cos_roll = sin_yaw * cos_roll;
 
 			self.x = -sin_pitch * cos_yaw_cos_roll - cos_pitch * sin_yaw_sin_roll;
-	    	self.y = -cos_pitch * sin_yaw_cos_roll + sin_pitch * cos_yaw_sin_roll;
-	    	self.z = -cos_pitch * cos_yaw_sin_roll - sin_pitch * sin_yaw_cos_roll;
-	    	self.w =  cos_pitch * cos_yaw_cos_roll - sin_pitch * sin_yaw_sin_roll;
+			self.y = -cos_pitch * sin_yaw_cos_roll + sin_pitch * cos_yaw_sin_roll;
+			self.z = -cos_pitch * cos_yaw_sin_roll - sin_pitch * sin_yaw_cos_roll;
+			self.w =  cos_pitch * cos_yaw_cos_roll - sin_pitch * sin_yaw_sin_roll;
 
 			self
 		}
@@ -510,50 +510,50 @@ mod math {
 	}
 
 	impl Add for Quaternion {
-    	type Output = Quaternion;
+		type Output = Quaternion;
 
-    	fn add(self, r: Quaternion) -> Quaternion {
+		fn add(self, r: Quaternion) -> Quaternion {
 			Quaternion {
 				x: self.x + r.x,
 				y: self.y + r.y,
 				z: self.z + r.z,
 				w: self.w + r.w,
 			}
-    	}
+		}
 	}
 
 	impl Sub for Quaternion {
-    	type Output = Quaternion;
+		type Output = Quaternion;
 
-    	fn sub(self, r: Quaternion) -> Quaternion {
+		fn sub(self, r: Quaternion) -> Quaternion {
 			Quaternion {
 				x: self.x - r.x,
 				y: self.y - r.y,
 				z: self.z - r.z,
 				w: self.w - r.w,
 			}
-    	}
+		}
 	}
 
 	impl Mul<Quaternion> for Quaternion {
-    	type Output = Quaternion;
+		type Output = Quaternion;
 
-    	fn mul(self, r: Quaternion) -> Quaternion {
+		fn mul(self, r: Quaternion) -> Quaternion {
 			Quaternion {
 				x: self.w * r.x + self.x * r.w + self.y * r.z - self.z * r.y,
 				y: self.w * r.y + self.y * r.w + self.z * r.x - self.x * r.z,
 				z: self.w * r.z + self.z * r.w + self.x * r.y - self.y * r.x,
 				w: self.w * r.w - self.x * r.x - self.y * r.y - self.z * r.z,
 			}
-    	}
+		}
 	}
 
 	impl Mul<f32> for Quaternion {
-    	type Output = Quaternion;
+		type Output = Quaternion;
 
 		fn mul(self, r: f32) -> Quaternion {
 			Quaternion { x: self.x * r, y: self.y * r, z: self.z * r, w: self.w * r }
-    	}
+		}
 	}
 
 	// ____________________________________________________________________________________________
@@ -673,44 +673,44 @@ mod math {
 	}
 
 	impl Add for Vec3 {
-    	type Output = Vec3;
+		type Output = Vec3;
 
 		fn add(self, r: Vec3) -> Vec3 {
 			Vec3 { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z }
-    	}
+		}
 	}
 
 	impl Sub for Vec3 {
-    	type Output = Vec3;
+		type Output = Vec3;
 
 		fn sub(self, r: Vec3) -> Vec3 {
 			Vec3 { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z }
-    	}
+		}
 	}
 
 	impl Mul<f32> for Vec3 {
-    	type Output = Vec3;
+		type Output = Vec3;
 
 		fn mul(self, r: f32) -> Vec3 {
 			Vec3 {  x: self.x * r, y: self.y * r, z: self.z * r }
-    	}
+		}
 	}
 
 	impl Div<f32> for Vec3 {
-    	type Output = Vec3;
+		type Output = Vec3;
 
 		fn div(self, r: f32) -> Vec3 {
 			let inv = if (r != 0.0) { 1.0 / r } else { f32::MAX };
 			Vec3 { x: self.x * inv, y: self.y * inv, z: self.z * inv }
-    	}
+		}
 	}
 
 	impl Neg for Vec3 {
-    	type Output = Vec3;
+		type Output = Vec3;
 
-    	fn neg(self) -> Vec3 {
-        	Vec3 { x: -self.x, y: -self.y, z: -self.z }
-    	}
+		fn neg(self) -> Vec3 {
+			Vec3 { x: -self.x, y: -self.y, z: -self.z }
+		}
 	}
 
 	// ____________________________________________________________________________________________
