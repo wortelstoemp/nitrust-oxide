@@ -193,13 +193,40 @@ mod math {
 			self
 		}
 
-		// TODO: Implement
 		fn look_at(&mut self, eye: &Vec3, look: &Vec3, up: &Vec3) -> &Mat4x4 {
+			let l = look.normalized();
+			let r = look.cross(up);
+			let u = l.cross(&r).normalized();
+
+			//	Calculation of camera matrix:
+			//    	      Orientationmatrix		*	  Translationmatrix
+			//    	|right.x  up.x  -look.x  0|	          |1 0 0 -eye.x|
+			//    	|right.y  up.y  -look.y  0|		      |0 1 0 -eye.x|
+			//    	|right.z  up.z  -look.z  0|		      |0 0 1 -eye.x|
+			//      |0 		  0 	0 	     1|			  |0 0 0  1    |
+
+			self.m = [
+    				r.x, u.x, -l.x, -r.x * eye.x - u.x *eye.y + l.x *eye.z,
+    				r.y, u.y, -l.y, -r.y * eye.x - u.y *eye.y + l.y *eye.z,
+    				r.z, u.z, -l.z, -r.z * eye.x - u.z *eye.y + l.z *eye.z,
+    				0.0, 0.0, 0.0, 1.0,
+    			];
+
 			self
 		}
-
-		// TODO: Implement
+		
 		fn camera(&mut self, position: &Vec3, orientation: &Quaternion) -> &Mat4x4 {
+			let r = orientation.right();
+			let u = orientation.up();
+			let f = orientation.forward();
+
+			self.m = [
+    				r.x, r.y, r.z, -r.x * position.x - r.y * position.y - r.z * position.z,
+    				u.x, u.y, u.z, -u.x * position.x - u.y * position.y - u.z * position.z,
+    				f.x, f.y, f.z, -f.x * position.x - f.y * position.y - f.z * position.z,
+    				0.0, 0.0, 0.0, 1.0,
+    			];
+
 			self
 		}
 	}
@@ -313,6 +340,17 @@ mod math {
 			);
 
 			self
+		}
+
+		fn normalized(&self) -> Quaternion {
+			let inv_length = 1.0 / self.length();
+			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
+			Quaternion {
+				x: x * inv_length,
+				y: y * inv_length,
+				z: z * inv_length,
+				w: w * inv_length,
+			}
 		}
 
 		fn normalize(&mut self) -> &Quaternion {
@@ -580,6 +618,16 @@ mod math {
 			self.x = ay + by + cy;
 			self.x = az + bz + cz;
 			self
+		}
+
+		fn normalized(&self) -> Vec3 {
+			let inv_length = 1.0 / self.length();
+			let (x, y, z) = (self.x, self.y, self.z);
+			Vec3 {
+				x: x * inv_length,
+				y: y * inv_length,
+				z: z * inv_length,
+			}
 		}
 
 		fn normalize(&mut self) -> &Vec3 {
