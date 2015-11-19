@@ -20,7 +20,6 @@ use std::io;
 use std::io::{ Error, ErrorKind };
 use std::io::prelude::*;
 use std::fs::File;
-use std::mem;
 use std::ptr;
 use std::str;
 use std::ffi::CString;
@@ -189,7 +188,9 @@ mod math {
 
 		// TODO: rotate()
 
-		pub fn ortho(&mut self, left: f32, right: f32, bottom: f32, top: f32, z_near: f32, z_far: f32) -> &Mat4x4 {
+		pub fn ortho(&mut self, left: f32, right: f32, bottom: f32, top: f32,
+			z_near: f32, z_far: f32) -> &Mat4x4 {
+
 			let width = right - left;
 			let height = top - bottom;
 			let depth = z_far - z_near;
@@ -203,7 +204,9 @@ mod math {
 			self
 		}
 
-		pub fn perspective(&mut self, fovy: f32, aspect_ratio: f32, z_near: f32, z_far: f32) -> &Mat4x4 {
+		pub fn perspective(&mut self, fovy: f32, aspect_ratio: f32,
+			z_near: f32, z_far: f32) -> &Mat4x4 {
+
 			let rad: f32 = (fovy / 2.0) * PI / 180.0;
 			let y_scale: f32 = 1.0 / rad.tan();
 			let x_scale: f32 = y_scale / aspect_ratio;
@@ -212,7 +215,7 @@ mod math {
 			self.m = [
 				x_scale, 0.0, 0.0, 0.0,
 				0.0, y_scale, 0.0, 0.0,
-				0.0, 0.0, (z_far + z_near) / frustum_length, (-2.0) * z_near * z_far / frustum_length,
+				0.0, 0.0, (z_far + z_near) / frustum_length, (-2.0)*z_near*z_far/frustum_length,
 				0.0, 0.0, 1.0, 0.0,
 			];
 			self
@@ -225,10 +228,10 @@ mod math {
 
 			//	Calculation of camera matrix:
 			//			  Orientationmatrix		*	  Translationmatrix
-			//		|right.x  up.x  -look.x  0|			  |1 0 0 -eye.x|
-			//		|right.y  up.y  -look.y  0|			  |0 1 0 -eye.x|
-			//		|right.z  up.z  -look.z  0|			  |0 0 1 -eye.x|
-			//	  |0 		  0 	0 		 1|			  |0 0 0  1	|
+			//		|right.x  up.x  -look.x  0|			  |1 0 0 -eye.x	|
+			//		|right.y  up.y  -look.y  0|			  |0 1 0 -eye.x	|
+			//		|right.z  up.z  -look.z  0|			  |0 0 1 -eye.x	|
+			//		|0 		  0 	0 		 1|			  |0 0 0  1		|
 
 			self.m = [
 					r.x, u.x, -l.x, -r.x * eye.x - u.x *eye.y + l.x *eye.z,
@@ -259,13 +262,13 @@ mod math {
 	impl Add for Mat4x4 {
 		type Output = Mat4x4;
 
-		fn add(self, o: Mat4x4) -> Mat4x4 {
+		fn add(self, r: Mat4x4) -> Mat4x4 {
 			let mut res = Mat4x4::new();
 			res.m = [
-				self.m[0] + o.m[0],	self.m[1] + o.m[1], self.m[2] + o.m[2], self.m[3] + o.m[3],
-				self.m[4] + o.m[4], self.m[5] + o.m[5], self.m[6] + o.m[6], self.m[7] + o.m[7],
-				self.m[8] + o.m[8], self.m[9] + o.m[9], self.m[10] + o.m[10], self.m[11] + o.m[11],
-				self.m[12] + o.m[12], self.m[13] + o.m[13], self.m[14] + o.m[14], self.m[15] + o.m[15],
+				self.m[0]+r.m[0], self.m[1]+r.m[1], self.m[2]+r.m[2], self.m[3]+r.m[3],
+				self.m[4]+r.m[4], self.m[5]+r.m[5], self.m[6]+r.m[6], self.m[7]+r.m[7],
+				self.m[8]+r.m[8], self.m[9]+r.m[9], self.m[10]+r.m[10], self.m[11]+r.m[11],
+				self.m[12]+r.m[12], self.m[13]+r.m[13], self.m[14]+r.m[14], self.m[15]+r.m[15],
 			];
 			res
 		}
@@ -274,13 +277,13 @@ mod math {
 	impl Sub for Mat4x4 {
 		type Output = Mat4x4;
 
-		fn sub(self, o: Mat4x4) -> Mat4x4 {
+		fn sub(self, r: Mat4x4) -> Mat4x4 {
 			let mut res = Mat4x4::new();
 			res.m = [
-				self.m[0] - o.m[0],	self.m[1] - o.m[1], self.m[2] - o.m[2], self.m[3] - o.m[3],
-				self.m[4] - o.m[4], self.m[5] - o.m[5], self.m[6] - o.m[6], self.m[7] - o.m[7],
-				self.m[8] - o.m[8], self.m[9] - o.m[9], self.m[10] - o.m[10], self.m[11] - o.m[11],
-				self.m[12] - o.m[12], self.m[13] - o.m[13], self.m[14] - o.m[14], self.m[15] - o.m[15],
+				self.m[0]-r.m[0], self.m[1]-r.m[1], self.m[2]-r.m[2], self.m[3]-r.m[3],
+				self.m[4]-r.m[4], self.m[5]-r.m[5], self.m[6]-r.m[6], self.m[7]-r.m[7],
+				self.m[8]-r.m[8], self.m[9]-r.m[9], self.m[10]-r.m[10], self.m[11]-r.m[11],
+				self.m[12]-r.m[12], self.m[13]-r.m[13], self.m[14]-r.m[14], self.m[15]-r.m[15],
 			];
 			res
 		}
@@ -292,28 +295,28 @@ mod math {
 		fn mul(self, r: Mat4x4) -> Mat4x4 {
 			Mat4x4 { m: [
 				// Row 0
-				self.m[0] * r.m[0] + self.m[3] * r.m[12] + self.m[1] * r.m[4] + self.m[2] * r.m[8],
-				self.m[0] * r.m[1] + self.m[3] * r.m[13] + self.m[1] * r.m[5] + self.m[2] * r.m[9],
-				self.m[2] * r.m[10] + self.m[3] * r.m[14] + self.m[0] * r.m[2] + self.m[1] * r.m[6],
-				self.m[2] * r.m[11] + self.m[3] * r.m[15] + self.m[0] * r.m[3] + self.m[1] * r.m[7],
+				self.m[0]*r.m[0] + self.m[3]*r.m[12] + self.m[1]*r.m[4] + self.m[2]*r.m[8],
+				self.m[0]*r.m[1] + self.m[3]*r.m[13] + self.m[1]*r.m[5] + self.m[2]*r.m[9],
+				self.m[2]*r.m[10] + self.m[3]*r.m[14] + self.m[0]*r.m[2] + self.m[1]*r.m[6],
+				self.m[2]*r.m[11] + self.m[3]*r.m[15] + self.m[0]*r.m[3] + self.m[1]*r.m[7],
 
 				// Row 1
-				self.m[4] * r.m[0] + self.m[7] * r.m[12] + self.m[5] * r.m[4] + self.m[6] * r.m[8],
-				self.m[4] * r.m[1] + self.m[7] * r.m[13] + self.m[5] * r.m[5] + self.m[6] * r.m[9],
-				self.m[6] * r.m[10] + self.m[7] * r.m[14] + self.m[4] * r.m[2] + self.m[5] * r.m[6],
-				self.m[6] * r.m[11] + self.m[7] * r.m[15] + self.m[4] * r.m[3] + self.m[5] * r.m[7],
+				self.m[4]*r.m[0] + self.m[7]*r.m[12] + self.m[5]*r.m[4] + self.m[6]*r.m[8],
+				self.m[4]*r.m[1] + self.m[7]*r.m[13] + self.m[5]*r.m[5] + self.m[6]*r.m[9],
+				self.m[6]*r.m[10] + self.m[7]*r.m[14] + self.m[4]*r.m[2] + self.m[5]*r.m[6],
+				self.m[6]*r.m[11] + self.m[7]*r.m[15] + self.m[4]*r.m[3] + self.m[5]*r.m[7],
 
 				// Row 2
-				self.m[8] * r.m[0] + self.m[11] * r.m[12] + self.m[9] * r.m[4] + self.m[10] * r.m[8],
-				self.m[8] * r.m[1] + self.m[11] * r.m[13] + self.m[9] * r.m[5] + self.m[10] * r.m[9],
-				self.m[10] * r.m[10] + self.m[11] * r.m[14] + self.m[8] * r.m[2] + self.m[9] * r.m[6],
-				self.m[10] * r.m[11] + self.m[11] * r.m[15] + self.m[8] * r.m[3] + self.m[9] * r.m[7],
+				self.m[8]*r.m[0] + self.m[11]*r.m[12] + self.m[9]*r.m[4] + self.m[10]*r.m[8],
+				self.m[8]*r.m[1] + self.m[11]*r.m[13] + self.m[9]*r.m[5] + self.m[10]*r.m[9],
+				self.m[10]*r.m[10] + self.m[11]*r.m[14] + self.m[8]*r.m[2] + self.m[9]*r.m[6],
+				self.m[10]*r.m[11] + self.m[11]*r.m[15] + self.m[8]*r.m[3] + self.m[9]*r.m[7],
 
 				// Row 3
-				self.m[12] * r.m[0] + self.m[15] * r.m[12] + self.m[13] * r.m[4] + self.m[14] * r.m[8],
-				self.m[12] * r.m[1] + self.m[15] * r.m[13] + self.m[13] * r.m[5] + self.m[14] * r.m[9],
-				self.m[14] * r.m[10] + self.m[15] * r.m[14] + self.m[12] * r.m[2] + self.m[13] * r.m[6],
-				self.m[14] * r.m[11] + self.m[15] * r.m[15] + self.m[12] * r.m[3] + self.m[13] * r.m[7],
+				self.m[12]*r.m[0] + self.m[15]*r.m[12] + self.m[13]*r.m[4] + self.m[14]*r.m[8],
+				self.m[12]*r.m[1] + self.m[15]*r.m[13] + self.m[13]*r.m[5] + self.m[14]*r.m[9],
+				self.m[14]*r.m[10] + self.m[15]*r.m[14] + self.m[12]*r.m[2] + self.m[13]*r.m[6],
+				self.m[14]*r.m[11] + self.m[15]*r.m[15] + self.m[12]*r.m[3] + self.m[13]*r.m[7],
 			]}
 		}
 	}
@@ -450,7 +453,8 @@ mod math {
 		}
 
 		pub fn inverse(&mut self) -> &Quaternion {
-			let inv_length_squared = 1.0 / (self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w);
+			let inv_length_squared = 1.0 /
+				(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w);
 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
 			self.set(
 					-x * inv_length_squared,
@@ -826,10 +830,10 @@ impl Texture {
 		let mut image_size: u32 = 0;
 
 		unsafe {
-    		let raw_width = [header[0x12], header[0x13], header[0x14], header[0x15]];
-    		self.width = std::mem::transmute::<[u8; 4], i32>(raw_width);
+			let raw_width = [header[0x12], header[0x13], header[0x14], header[0x15]];
+			self.width = std::mem::transmute::<[u8; 4], i32>(raw_width);
 			let raw_height = [header[0x16], header[0x17], header[0x18], header[0x19]];
-    		self.height = std::mem::transmute::<[u8; 4], i32>(raw_height);
+			self.height = std::mem::transmute::<[u8; 4], i32>(raw_height);
 			let raw_image_size = [header[0x22], header[0x23], header[0x24], header[0x25]];
 			image_size = std::mem::transmute::<[u8; 4], u32>(raw_height);
 		}
@@ -884,31 +888,19 @@ impl<'a> InternalShader<'a> {
 		}
 	}
 
-	pub fn vertex_shader(&self, file: &str) {
-		let code =
-		"#version 330 core\n\
-	 	layout (location = 0) in vec3 position;\n\
-		uniform mat4 transform;\n\
-	 	void main() {\n\
-	 	   gl_Position = transform * vec4(position.x, position.y, position.z, 1.0);\n\
-	 	}";
-		self.add_shader(code, gl::VERTEX_SHADER); // TODO: read file and return code
+	pub fn vertex_shader(&self, file_path: &str) {
+		let code = &*InternalShader::read_code(file_path);
+		self.add_shader(code, gl::VERTEX_SHADER);
 	}
 
-	pub fn fragment_shader(&self, file: &str) {
-		let code =
-		"#version 330 core\n\
-	 	out vec4 out_color;\n\
-	 	uniform vec4 color;\n\
-	 	void main() {\n\
-	 	   out_color = color;\n\
-	 	}";
+	pub fn fragment_shader(&self, file_path: &str) {
+		let code = &*InternalShader::read_code(file_path);
 		self.add_shader(code, gl::FRAGMENT_SHADER); // TODO: read file and return code
 	}
 
-	pub fn geometry_shader(&self, file: &str) {
-		let code = "";
-		self.add_shader(code, gl::GEOMETRY_SHADER); // TODO: read file and return code
+	pub fn geometry_shader(&self, file_path: &str) {
+		let code = &*InternalShader::read_code(file_path);
+		self.add_shader(code, gl::GEOMETRY_SHADER);
 	}
 
 	fn add_shader(&self, code: &str, ty: GLenum) {
@@ -920,6 +912,14 @@ impl<'a> InternalShader<'a> {
 			gl::AttachShader(self.id, shader);
 			gl::DeleteShader(shader);
 		}
+	}
+
+	fn read_code(file_path: &str) -> String {
+		let mut file = File::open(file_path).unwrap();
+		let mut contents: Vec<u8> = Vec::new();
+		file.read_to_end(&mut contents).unwrap();
+
+		String::from_utf8(contents).unwrap()
 	}
 
 	pub fn add_uniform(&mut self, uniform: &'a str) {
@@ -936,14 +936,14 @@ impl<'a> InternalShader<'a> {
 	}
 
 	pub fn set_bool(&self, uniform: &'a str, value: bool) {
-        unsafe {
+		unsafe {
 			gl::Uniform1i(*self.uniforms.get(uniform).unwrap(),
 				match value {
 					true => 1,
 					false => 0
 				});
 		}
-    }
+	}
 
 	pub fn set_i32(&self, uniform: &'a str, value: i32) {
 		unsafe {
@@ -959,13 +959,15 @@ impl<'a> InternalShader<'a> {
 
 	pub fn set_vec4(&self, uniform: &'a str, value: &Vec4) {
 		unsafe {
-			gl::Uniform4f(*self.uniforms.get(uniform).unwrap(), value.x, value.y, value.z, value.w);
+			gl::Uniform4f(*self.uniforms.get(uniform).unwrap(),
+				value.x, value.y, value.z, value.w);
 		}
 	}
 
 	pub fn set_mat4x4(&self, uniform: &'a str, value: &Mat4x4) {
 		unsafe {
-            gl::UniformMatrix4fv(*self.uniforms.get(uniform).unwrap(), 1, gl::TRUE, std::mem::transmute(value));
+			gl::UniformMatrix4fv(*self.uniforms.get(uniform).unwrap(), 1,
+				gl::TRUE, std::mem::transmute(value));
 		}
 	}
 
@@ -983,11 +985,11 @@ impl<'a> InternalShader<'a> {
 }
 
 impl<'a> Drop for InternalShader<'a> {
-    fn drop(&mut self) {
-        unsafe {
+	fn drop(&mut self) {
+		unsafe {
 			gl::DeleteProgram(self.id);
 		};
-    }
+	}
 }
 
 pub trait Shader {
@@ -1100,7 +1102,9 @@ fn main() {
 	}
 
 	// Initialize Rendering
-	let mut shader = BasicShader::new("basic.vs.glsl", "basic.fs.glsl"); // TODO: change to real files
+	let mut shader = BasicShader::new(
+		"./assets/shaders/basic_shader.vs.glsl",
+		"./assets/shaders/basic_shader.fs.glsl");
 	shader.init();
 
 	let mut vao = 0;
@@ -1117,19 +1121,20 @@ fn main() {
 		gl::GenBuffers(1, &mut vbo);
 		gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
 		gl::BufferData(gl::ARRAY_BUFFER,
-			(VERTEX_DATA.len() * mem::size_of::<GLfloat>()) as GLsizeiptr,
-			mem::transmute(&VERTEX_DATA[0]),
+			(VERTEX_DATA.len() * std::mem::size_of::<GLfloat>()) as GLsizeiptr,
+			std::mem::transmute(&VERTEX_DATA[0]),
 			gl::STATIC_DRAW);
 
 		// Create a Element Buffer Object and copy the index data to it
 		gl::GenBuffers(1, &mut ebo);
 		gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
 		gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
-			(INDICES.len() * mem::size_of::<GLuint>()) as GLsizeiptr,
+			(INDICES.len() * std::mem::size_of::<GLuint>()) as GLsizeiptr,
 			std::mem::transmute(&INDICES[0]),
 			gl::STATIC_DRAW);
 
-		gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE as GLboolean, (3 * mem::size_of::<GLfloat>()) as i32, 0 as *const _);
+		gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE as GLboolean,
+			(3 * std::mem::size_of::<GLfloat>()) as i32, 0 as *const _);
 		gl::EnableVertexAttribArray(0);
 
 		gl::BindBuffer(gl::ARRAY_BUFFER, 0);
