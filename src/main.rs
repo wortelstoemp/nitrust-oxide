@@ -813,12 +813,27 @@ impl Texture {
 		}
 	}
 
+	pub fn begin(&self) {
+		unsafe {
+			gl::BindTexture(gl::TEXTURE_2D, self.id);
+		}
+	}
+
+	pub fn end(&self) {
+		unsafe {
+			gl::BindTexture(gl::TEXTURE_2D, 0);
+		}
+	}
+
+	pub fn load(&mut self, file_path: &str) -> io::Result<GLuint> {
+		self.load_bmp(file_path)
+	}
+
 	// Loading bmp manually for educational purposes later I will use dds
 	// file_path has format: "./assets/textures/foo.bmp"
-	pub fn load_bmp(&mut self, file_path: &str) -> io::Result<GLuint> {
+	fn load_bmp(&mut self, file_path: &str) -> io::Result<GLuint> {
 		let mut file = try!(File::open(file_path));
 		let mut header: [u8; 54] = [0; 54];
-		let mut buffer2 = [0; 10];
 
 		// Header
 		try!(file.read(&mut header));
@@ -835,7 +850,7 @@ impl Texture {
 			let raw_height = [header[0x16], header[0x17], header[0x18], header[0x19]];
 			self.height = std::mem::transmute::<[u8; 4], i32>(raw_height);
 			let raw_image_size = [header[0x22], header[0x23], header[0x24], header[0x25]];
-			image_size = std::mem::transmute::<[u8; 4], u32>(raw_height);
+			image_size = std::mem::transmute::<[u8; 4], u32>(raw_image_size);
 		}
 
 		if image_size == 0 {
@@ -851,11 +866,18 @@ impl Texture {
 			gl::GenTextures(1, &mut self.id);
 			gl::BindTexture(gl::TEXTURE_2D, self.id);
 
+			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
+    		gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
+			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+
 			gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGB as i32, self.width, self.height,
 				0, gl::BGR, gl::UNSIGNED_BYTE, std::mem::transmute(&data[0]));
 
-			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
-			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
+			gl::GenerateMipmap(gl::TEXTURE_2D);
+
+			data.clear();
+			gl::BindTexture(gl::TEXTURE_2D, 0);
 		}
 
 		Ok(self.id)
@@ -1008,19 +1030,25 @@ pub trait Shader {
 
 pub struct BasicShader<'a> {
 	shader: InternalShader,
-	uniform_transform: Uniform<'a> ,
+	uniform_transform: Uniform<'a>,
 }
 
 impl<'a> BasicShader<'a> {
-	fn new(vertex_shader_file: &str, fragment_shader_file: &str) -> BasicShader<'a> {
+	pub fn new() -> BasicShader<'a> {
 		let shader = InternalShader::new();
-		shader.vertex_shader(vertex_shader_file);
-		shader.fragment_shader(fragment_shader_file);
 
 		BasicShader {
 			shader: shader,
 			uniform_transform: Uniform::new("transform"),
 		}
+	}
+
+	pub fn load_vertex_shader(&self, file_path: &str) {
+		self.shader.vertex_shader(file_path);
+	}
+
+	pub fn load_fragment_shader(&self, file_path: &str) {
+		self.shader.fragment_shader(file_path);
 	}
 }
 
@@ -1051,12 +1079,12 @@ impl<'a> Shader for BasicShader<'a> {
 	}
 }
 
-static VERTICES: [GLfloat; 24] = [
-	// Positions		Colors
-	0.5, 0.5, 0.0,		1.0, 0.0, 0.0,	// Top Right
-	0.5, -0.5, 0.0,		0.0, 0.0, 1.0,	// Bottom Right
-	-0.5, -0.5, 0.0,	0.0, 1.0, 0.0,	// Bottom Left
-	-0.5, 0.5, 0.0,		1.0, 1.0, 1.0	// Top Left
+static VERTICES: [GLfloat; 32] = [
+	// Positions		Colors			Texture Coordinates
+	0.5, 0.5, 0.0,		1.0, 0.0, 0.0,	1.0, 1.0,			// Top Right
+	0.5, -0.5, 0.0,		0.0, 0.0, 1.0,	1.0, 0.0,			// Bottom Right
+	-0.5, -0.5, 0.0,	0.0, 1.0, 0.0,	0.0, 0.0,			// Bottom Left
+	-0.5, 0.5, 0.0,		1.0, 1.0, 0.0,	0.0, 1.0			// Top Left
 ];
 
 static INDICES: [GLuint; 6] = [
@@ -1106,10 +1134,7 @@ fn main() {
 	}
 
 	// Initialize Rendering
-	let mut shader = BasicShader::new(
-		"./assets/shaders/basic_shader.vs.glsl",
-		"./assets/shaders/basic_shader.fs.glsl");
-	shader.init();
+
 
 	let mut vao = 0;
 	let mut vbo = 0;
@@ -1139,14 +1164,20 @@ fn main() {
 
 		// Position attribute
 		gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE as GLboolean,
-			(6 * std::mem::size_of::<GLfloat>()) as i32, 0 as *const _);
+			(8 * std::mem::size_of::<GLfloat>()) as i32, 0 as *const _);
 		gl::EnableVertexAttribArray(0);
 
 		// Color attribute
 		gl::VertexAttribPointer(1, 3, gl::FLOAT, gl::FALSE as GLboolean,
-			(6 * std::mem::size_of::<GLfloat>()) as i32,
+			(8 * std::mem::size_of::<GLfloat>()) as i32,
 			(3 * std::mem::size_of::<GLfloat>()) as *const _);
 		gl::EnableVertexAttribArray(1);
+
+		// Texture attribute
+		gl::VertexAttribPointer(2, 2, gl::FLOAT, gl::FALSE as GLboolean,
+			(8 * std::mem::size_of::<GLfloat>()) as i32,
+			(6 * std::mem::size_of::<GLfloat>()) as *const _);
+		gl::EnableVertexAttribArray(2);
 
 		gl::BindBuffer(gl::ARRAY_BUFFER, 0);
 		//gl::BindVertexArray(0);
@@ -1159,6 +1190,14 @@ fn main() {
 
 		gl::Enable(gl::DEPTH_TEST);
 	}
+
+	let mut texture = Texture::new();
+	texture.load("./assets/textures/foo.bmp");
+
+	let mut shader = BasicShader::new();
+	shader.load_vertex_shader("./assets/shaders/basic_shader.vs.glsl");
+	shader.load_fragment_shader("./assets/shaders/basic_shader.fs.glsl");
+	shader.init();
 
 	// Initialize input
 	let mut event_pump = sdl_context.event_pump().unwrap();
@@ -1198,12 +1237,14 @@ fn main() {
 			gl::ClearColor(0.2, 0.3, 0.3, 1.0);
 			gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
-			gl::BindVertexArray(vao);
 
+			texture.begin();
 			shader.begin();
 			shader.update_uniforms(dt);
+			gl::BindVertexArray(vao);
 			gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
-			shader.end();
+			// shader.end();
+			// texture.end();
 
 			gl::BindVertexArray(0);
 		}
