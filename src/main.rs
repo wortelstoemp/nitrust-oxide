@@ -864,19 +864,33 @@ impl Texture {
 
 // Shaders
 // ________________________________________________________________________________________________
-
-pub struct InternalShader<'a> {
-	id: GLuint,
-	uniforms: HashMap<&'a str, GLint>,
+pub struct Uniform<'a> {
+	id: GLint,
+	name: &'a str,
 }
 
-impl<'a> InternalShader<'a> {
-	pub fn new() -> InternalShader<'a> {
+impl<'a> Uniform<'a> {
+	fn new(name: &'a str) -> Uniform<'a>  {
+		Uniform { id: 0, name: name }
+	}
+}
+
+impl<'a> Default for Uniform<'a>  {
+	fn default() -> Uniform<'a>  {
+		Uniform { id: 0, name: "" }
+	}
+}
+
+pub struct InternalShader {
+	id: GLuint,
+}
+
+impl InternalShader {
+	pub fn new() -> InternalShader {
 		unsafe {
 			let id = gl::CreateProgram();
 			InternalShader {
 				id: id,
-				uniforms: HashMap::new(),
 			 }
 		}
 	}
@@ -922,51 +936,44 @@ impl<'a> InternalShader<'a> {
 		String::from_utf8(contents).unwrap()
 	}
 
-	pub fn add_uniform(&mut self, uniform: &'a str) {
+	pub fn add_uniform(&mut self, uniform: &mut Uniform) {
 		unsafe {
-			let c_str = CString::new(uniform.as_bytes()).unwrap();
-			let uniform_location = gl::GetUniformLocation(self.id, c_str.as_ptr());
-
-			if uniform_location == -1 {
-				panic!("Could not find uniform {}", uniform);
+			let c_str = CString::new(uniform.name.as_bytes()).unwrap();
+			uniform.id = gl::GetUniformLocation(self.id, c_str.as_ptr());
+			if uniform.id == -1 {
+				panic!("Could not find uniform {}", uniform.name);
 			}
-
-			self.uniforms.insert(uniform, uniform_location);
 		}
 	}
 
-	pub fn set_bool(&self, uniform: &'a str, value: bool) {
+	pub fn set_bool(&self, uniform: &Uniform, value: bool) {
 		unsafe {
-			gl::Uniform1i(*self.uniforms.get(uniform).unwrap(),
-				match value {
-					true => 1,
-					false => 0
-				});
+			gl::Uniform1i(uniform.id, match value { true => 1, false => 0 });
 		}
 	}
 
-	pub fn set_i32(&self, uniform: &'a str, value: i32) {
+	pub fn set_i32(&self, uniform: &Uniform, value: i32) {
 		unsafe {
-			gl::Uniform1i(*self.uniforms.get(uniform).unwrap(), value);
+			gl::Uniform1i(uniform.id, value);
 		}
 	}
 
-	pub fn set_f32(&self, uniform: &'a str, value: f32) {
+	pub fn set_f32(&self, uniform: &Uniform, value: f32) {
 		unsafe {
-			gl::Uniform1f(*self.uniforms.get(uniform).unwrap(), value);
+			gl::Uniform1f(uniform.id, value);
 		}
 	}
 
-	pub fn set_vec4(&self, uniform: &'a str, value: &Vec4) {
+	pub fn set_vec4(&self, uniform: &Uniform, value: &Vec4) {
 		unsafe {
-			gl::Uniform4f(*self.uniforms.get(uniform).unwrap(),
+			gl::Uniform4f(uniform.id,
 				value.x, value.y, value.z, value.w);
 		}
 	}
 
-	pub fn set_mat4x4(&self, uniform: &'a str, value: &Mat4x4) {
+	pub fn set_mat4x4(&self, uniform: &Uniform, value: &Mat4x4) {
 		unsafe {
-			gl::UniformMatrix4fv(*self.uniforms.get(uniform).unwrap(), 1,
+			gl::UniformMatrix4fv(uniform.id, 1,
 				gl::TRUE, std::mem::transmute(value));
 		}
 	}
@@ -984,7 +991,7 @@ impl<'a> InternalShader<'a> {
 	}
 }
 
-impl<'a> Drop for InternalShader<'a> {
+impl Drop for InternalShader {
 	fn drop(&mut self) {
 		unsafe {
 			gl::DeleteProgram(self.id);
@@ -1000,9 +1007,9 @@ pub trait Shader {
 }
 
 pub struct BasicShader<'a> {
-	shader: InternalShader<'a>,
-	UNIFORM_COLOR: &'a str,
-	UNIFORM_TRANSFORM: &'a str,
+	shader: InternalShader,
+	uniform_color: Uniform<'a>,
+	uniform_transform: Uniform<'a> ,
 }
 
 impl<'a> BasicShader<'a> {
@@ -1013,8 +1020,8 @@ impl<'a> BasicShader<'a> {
 
 		BasicShader {
 			shader: shader,
-			UNIFORM_COLOR: "color",
-			UNIFORM_TRANSFORM: "transform",
+			uniform_color: Uniform::new("color"),
+			uniform_transform: Uniform::new("transform"),
 		}
 	}
 }
@@ -1022,8 +1029,8 @@ impl<'a> BasicShader<'a> {
 impl<'a> Shader for BasicShader<'a> {
 	fn init(&mut self) {
 		self.shader.compile();
-		self.shader.add_uniform(self.UNIFORM_COLOR);
-		self.shader.add_uniform(self.UNIFORM_TRANSFORM);
+		self.shader.add_uniform(&mut self.uniform_color);
+		self.shader.add_uniform(&mut self.uniform_transform);
 	}
 
 	fn begin(&self) {
@@ -1036,14 +1043,14 @@ impl<'a> Shader for BasicShader<'a> {
 
 	fn update_uniforms(&self, dt: f32) {
 		// Unique implementation
-		self.shader.set_vec4(self.UNIFORM_COLOR, &Vec4{ x: 1.0, y: 1.0, z: 0.0, w: 1.0});
+		self.shader.set_vec4(&self.uniform_color, &Vec4{ x: 1.0, y: 1.0, z: 0.0, w: 1.0});
 		let mut transform = Mat4x4::new();
 		transform.scale(&Vec3{ x: 0.5, y: 0.5, z: 0.5 });
 		let mut orientation = Quaternion::new();
 		orientation.rotate(&Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0);
 		transform = orientation.matrix() * transform;
 		transform.translate(&Vec3{ x: 0.5, y: -0.5, z: 0.0 });
-		self.shader.set_mat4x4(self.UNIFORM_TRANSFORM, &transform);
+		self.shader.set_mat4x4(&self.uniform_transform, &transform);
 	}
 }
 
