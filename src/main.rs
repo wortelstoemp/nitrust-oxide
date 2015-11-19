@@ -1008,7 +1008,6 @@ pub trait Shader {
 
 pub struct BasicShader<'a> {
 	shader: InternalShader,
-	uniform_color: Uniform<'a>,
 	uniform_transform: Uniform<'a> ,
 }
 
@@ -1020,7 +1019,6 @@ impl<'a> BasicShader<'a> {
 
 		BasicShader {
 			shader: shader,
-			uniform_color: Uniform::new("color"),
 			uniform_transform: Uniform::new("transform"),
 		}
 	}
@@ -1029,7 +1027,6 @@ impl<'a> BasicShader<'a> {
 impl<'a> Shader for BasicShader<'a> {
 	fn init(&mut self) {
 		self.shader.compile();
-		self.shader.add_uniform(&mut self.uniform_color);
 		self.shader.add_uniform(&mut self.uniform_transform);
 	}
 
@@ -1043,7 +1040,7 @@ impl<'a> Shader for BasicShader<'a> {
 
 	fn update_uniforms(&self, dt: f32) {
 		// Unique implementation
-		self.shader.set_vec4(&self.uniform_color, &Vec4{ x: 1.0, y: 1.0, z: 0.0, w: 1.0});
+		//self.shader.set_vec4(&self.uniform_color, &Vec4{ x: 1.0, y: 1.0, z: 0.0, w: 1.0});
 		let mut transform = Mat4x4::new();
 		transform.scale(&Vec3{ x: 0.5, y: 0.5, z: 0.5 });
 		let mut orientation = Quaternion::new();
@@ -1054,12 +1051,12 @@ impl<'a> Shader for BasicShader<'a> {
 	}
 }
 
-// Vertex data
-static VERTEX_DATA: [GLfloat; 12] = [
-	0.5, 0.5, 0.0,		// Top Right
-	0.5, -0.5, 0.0,		// Bottom Right
-	-0.5, -0.5, 0.0,	// Bottom Left
-	-0.5, 0.5, 0.0		// Top Left
+static VERTICES: [GLfloat; 24] = [
+	// Positions		Colors
+	0.5, 0.5, 0.0,		1.0, 0.0, 0.0,	// Top Right
+	0.5, -0.5, 0.0,		0.0, 0.0, 1.0,	// Bottom Right
+	-0.5, -0.5, 0.0,	0.0, 1.0, 0.0,	// Bottom Left
+	-0.5, 0.5, 0.0,		1.0, 1.0, 1.0	// Top Left
 ];
 
 static INDICES: [GLuint; 6] = [
@@ -1128,8 +1125,8 @@ fn main() {
 		gl::GenBuffers(1, &mut vbo);
 		gl::BindBuffer(gl::ARRAY_BUFFER, vbo);
 		gl::BufferData(gl::ARRAY_BUFFER,
-			(VERTEX_DATA.len() * std::mem::size_of::<GLfloat>()) as GLsizeiptr,
-			std::mem::transmute(&VERTEX_DATA[0]),
+			(VERTICES.len() * std::mem::size_of::<GLfloat>()) as GLsizeiptr,
+			std::mem::transmute(&VERTICES[0]),
 			gl::STATIC_DRAW);
 
 		// Create a Element Buffer Object and copy the index data to it
@@ -1140,12 +1137,19 @@ fn main() {
 			std::mem::transmute(&INDICES[0]),
 			gl::STATIC_DRAW);
 
+		// Position attribute
 		gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE as GLboolean,
-			(3 * std::mem::size_of::<GLfloat>()) as i32, 0 as *const _);
+			(6 * std::mem::size_of::<GLfloat>()) as i32, 0 as *const _);
 		gl::EnableVertexAttribArray(0);
 
+		// Color attribute
+		gl::VertexAttribPointer(1, 3, gl::FLOAT, gl::FALSE as GLboolean,
+			(6 * std::mem::size_of::<GLfloat>()) as i32,
+			(3 * std::mem::size_of::<GLfloat>()) as *const _);
+		gl::EnableVertexAttribArray(1);
+
 		gl::BindBuffer(gl::ARRAY_BUFFER, 0);
-		gl::BindVertexArray(0);
+		//gl::BindVertexArray(0);
 
 		// Uncomment for wireframe mode
 		//gl::PolygonMode(gl::FRONT_AND_BACK, gl::LINE);
