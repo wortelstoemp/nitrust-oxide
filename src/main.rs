@@ -16,6 +16,10 @@ use sdl2::keyboard::Keycode;
 use sdl2::video::GLProfile;
 
 use std::collections::HashMap;
+use std::io;
+use std::io::{ Error, ErrorKind };
+use std::io::prelude::*;
+use std::fs::File;
 use std::mem;
 use std::ptr;
 use std::str;
@@ -787,17 +791,87 @@ mod math {
 	}
 }
 
+// Textures
+// ________________________________________________________________________________________________
+
+pub struct Texture {
+	id: GLuint,
+	width: i32,
+	height: i32,
+}
+
+impl Texture {
+	pub fn new() -> Texture {
+		Texture {
+			id: 0,
+			width: 0,
+			height: 0,
+		}
+	}
+
+	// Loading bmp manually for educational purposes later I will use dds
+	// file_path has format: "./assets/textures/foo.bmp"
+	pub fn load_bmp(&mut self, file_path: &str) -> io::Result<GLuint> {
+		let mut file = try!(File::open(file_path));
+		let mut header: [u8; 54] = [0; 54];
+		let mut buffer2 = [0; 10];
+
+		// Header
+		try!(file.read(&mut header));
+
+		if (header[0] != 66) || (header[1] != 77) {
+			return Err(Error::new(ErrorKind::Other, "Not a bmp file!"));
+ 		}
+
+		let mut image_size: u32 = 0;
+
+		unsafe {
+    		let raw_width = [header[0x12], header[0x13], header[0x14], header[0x15]];
+    		self.width = std::mem::transmute::<[u8; 4], i32>(raw_width);
+			let raw_height = [header[0x16], header[0x17], header[0x18], header[0x19]];
+    		self.height = std::mem::transmute::<[u8; 4], i32>(raw_height);
+			let raw_image_size = [header[0x22], header[0x23], header[0x24], header[0x25]];
+			image_size = std::mem::transmute::<[u8; 4], u32>(raw_height);
+		}
+
+		if image_size == 0 {
+			image_size = (self.width * self.height * 3) as u32;
+		}
+
+		// Data
+		let mut data = vec![0; image_size as usize];
+		try!(file.read(&mut data)); // Read from where header ended
+
+		// Give data to OpenGL and create texture
+		unsafe {
+			gl::GenTextures(1, &mut self.id);
+			gl::BindTexture(gl::TEXTURE_2D, self.id);
+
+			gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGB as i32, self.width, self.height,
+				0, gl::BGR, gl::UNSIGNED_BYTE, std::mem::transmute(&data[0]));
+
+			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::NEAREST as i32);
+			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::NEAREST as i32);
+		}
+
+		Ok(self.id)
+	}
+}
+
+// Shaders
+// ________________________________________________________________________________________________
+
 pub struct InternalShader<'a> {
-	program: GLuint,
+	id: GLuint,
 	uniforms: HashMap<&'a str, GLint>,
 }
 
 impl<'a> InternalShader<'a> {
 	pub fn new() -> InternalShader<'a> {
 		unsafe {
-			let program = gl::CreateProgram();
+			let id = gl::CreateProgram();
 			InternalShader {
-				program: program,
+				id: id,
 				uniforms: HashMap::new(),
 			 }
 		}
@@ -805,8 +879,8 @@ impl<'a> InternalShader<'a> {
 
 	pub fn compile(&self) {
 		unsafe {
-			gl::LinkProgram(self.program);
-			//gl::ValidateProgram(self.program);
+			gl::LinkProgram(self.id);
+			//gl::ValidateProgram(self.id);
 		}
 	}
 
@@ -843,7 +917,7 @@ impl<'a> InternalShader<'a> {
 			let c_str = CString::new(code.as_bytes()).unwrap();
 			gl::ShaderSource(shader, 1, &c_str.as_ptr(), ptr::null());
 			gl::CompileShader(shader);
-			gl::AttachShader(self.program, shader);
+			gl::AttachShader(self.id, shader);
 			gl::DeleteShader(shader);
 		}
 	}
@@ -851,7 +925,7 @@ impl<'a> InternalShader<'a> {
 	pub fn add_uniform(&mut self, uniform: &'a str) {
 		unsafe {
 			let c_str = CString::new(uniform.as_bytes()).unwrap();
-			let uniform_location = gl::GetUniformLocation(self.program, c_str.as_ptr());
+			let uniform_location = gl::GetUniformLocation(self.id, c_str.as_ptr());
 
 			if uniform_location == -1 {
 				panic!("Could not find uniform {}", uniform);
@@ -897,7 +971,7 @@ impl<'a> InternalShader<'a> {
 
 	pub fn begin(&self) {
 		unsafe {
-			gl::UseProgram(self.program);
+			gl::UseProgram(self.id);
 		}
 	}
 
@@ -911,7 +985,7 @@ impl<'a> InternalShader<'a> {
 impl<'a> Drop for InternalShader<'a> {
     fn drop(&mut self) {
         unsafe {
-			gl::DeleteProgram(self.program);
+			gl::DeleteProgram(self.id);
 		};
     }
 }
@@ -1052,7 +1126,7 @@ fn main() {
 		gl::BindBuffer(gl::ELEMENT_ARRAY_BUFFER, ebo);
 		gl::BufferData(gl::ELEMENT_ARRAY_BUFFER,
 			(INDICES.len() * mem::size_of::<GLuint>()) as GLsizeiptr,
-			mem::transmute(&INDICES[0]),
+			std::mem::transmute(&INDICES[0]),
 			gl::STATIC_DRAW);
 
 		gl::VertexAttribPointer(0, 3, gl::FLOAT, gl::FALSE as GLboolean, (3 * mem::size_of::<GLfloat>()) as i32, 0 as *const _);
@@ -1066,6 +1140,8 @@ fn main() {
 
 		// Set state back to filled polygons
 		//gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
+
+		gl::Enable(gl::DEPTH_TEST);
 	}
 
 	// Initialize input
@@ -1104,7 +1180,7 @@ fn main() {
 		// Rendering
 		unsafe {
 			gl::ClearColor(0.2, 0.3, 0.3, 1.0);
-			gl::Clear(gl::COLOR_BUFFER_BIT);
+			gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
 			gl::BindVertexArray(vao);
 
