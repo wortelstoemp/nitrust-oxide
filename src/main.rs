@@ -951,8 +951,8 @@ impl Texture {
 			gl::BindTexture(gl::TEXTURE_2D, self.id);
 			gl::PixelStorei(gl::UNPACK_ALIGNMENT,1);
 
-			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::REPEAT as i32);
-			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::REPEAT as i32);
+			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_S, gl::CLAMP_TO_EDGE as i32);	// REPEAT
+			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);	// REPEAT
 			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
 			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
 
@@ -1288,10 +1288,12 @@ fn main() {
 		//gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
 
 		gl::Enable(gl::DEPTH_TEST);
+		gl::Enable(gl::BLEND);
+		gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 	}
 
 	let mut texture = Texture::new();
-	texture.load("./assets/textures/foo.dds");
+	texture.load("./assets/textures/board_alpha.dds");
 
 	let mut shader = BasicShader::new();
 	shader.load_vertex_shader("./assets/shaders/basic_shader.vs.glsl");
@@ -1327,13 +1329,12 @@ fn main() {
 
 			clock.accumulate();
 		}
-		// println!("fps: {}", (1.0/dt));
 
 		// Do non fixed stuff
 
 		// Rendering
 		unsafe {
-			gl::ClearColor(0.2, 0.3, 0.3, 1.0);
+			gl::ClearColor(0.0, 0.0, 0.0, 1.0);
 			gl::Clear(gl::COLOR_BUFFER_BIT | gl::DEPTH_BUFFER_BIT);
 
 
@@ -1342,13 +1343,14 @@ fn main() {
 			shader.update_uniforms(dt);
 			gl::BindVertexArray(vao);
 			gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
-			// shader.end();
-			// texture.end();
+			shader.end();
+			texture.end();
 
 			gl::BindVertexArray(0);
 		}
 
 		window.gl_swap_window();
+		//println!("fps: {}, ms: {}", (1.0/dt), dt);
 	}
 
 	// Shutdown
