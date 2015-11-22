@@ -1178,17 +1178,18 @@ impl<'a> Shader for BasicShader<'a> {
 	}
 }
 
+// Quad
 static VERTICES: [GLfloat; 32] = [
 	// Positions		Colors			Texture Coordinates
 	0.5, 0.5, 0.0,		1.0, 0.0, 0.0,	1.0, 1.0,			// Top Right
-	0.5, -0.5, 0.0,		0.0, 0.0, 1.0,	1.0, 0.0,			// Bottom Right
+	-0.5, 0.5, 0.0,		1.0, 1.0, 0.0,	0.0, 1.0,			// Top Left
 	-0.5, -0.5, 0.0,	0.0, 1.0, 0.0,	0.0, 0.0,			// Bottom Left
-	-0.5, 0.5, 0.0,		1.0, 1.0, 0.0,	0.0, 1.0			// Top Left
+	0.5, -0.5, 0.0,		0.0, 0.0, 1.0,	1.0, 0.0			// Bottom Right
 ];
 
 static INDICES: [GLuint; 6] = [
-	0, 1, 3,   // First Triangle
-	1, 2, 3	   // Second Triangle
+	0, 1, 2,   // First Triangle
+	2, 3, 0	   // Second Triangle
 ];
 
 fn main() {
@@ -1287,7 +1288,15 @@ fn main() {
 		// Set state back to filled polygons
 		//gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
 
+		// Back Face Culling
+		gl::Enable(gl::CULL_FACE);
+		gl::CullFace(gl::BACK);
+		gl::FrontFace(gl::CCW);
+
+		// Depth testing
 		gl::Enable(gl::DEPTH_TEST);
+
+		// Alpha blending
 		gl::Enable(gl::BLEND);
 		gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 	}
