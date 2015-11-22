@@ -89,9 +89,50 @@ mod core {
 	}
 
 	pub struct Transform {
+		position: Vec3,
 		scale: Vec3,
 		orientation: Quaternion,
-		position: Vec3,
+	}
+
+	impl Transform {
+		pub fn move_towards(&mut self, direction: Vec3, amount: f32) {
+			self.position = self.position + direction.normalized() * amount;
+		}
+
+		pub fn rotate(&mut self, axis: Vec3, angle: f32) {
+			self.orientation.rotate(axis, angle);
+		}
+
+		pub fn model(&self) -> Mat4x4 {
+			Mat4x4::new().scale(self.scale) *
+			self.orientation.matrix() *
+			Mat4x4::new().translate(self.position)
+		}
+
+		pub fn mvp(&self, camera: &CameraComponent) -> Mat4x4 {
+			camera.view_projection * self.model()
+		}
+	}
+
+	pub struct CameraComponent {
+		view_projection: Mat4x4,
+	}
+
+	impl CameraComponent {
+		fn new_ortho(width: u32, height: u32, z_near: f32, z_far: f32) -> CameraComponent {
+			CameraComponent {
+				view_projection: Mat4x4::new()
+					.ortho(0.0, width as f32, 0.0, height as f32, z_near, z_far),
+			}
+		}
+
+		fn new_perspective(fovy: f32, width: u32, height: u32,
+			z_near: f32, z_far: f32) -> CameraComponent {
+			CameraComponent {
+				view_projection: Mat4x4::new()
+					.perspective(fovy, width as f32 / height as f32, z_near, z_far),
+			}
+		}
 	}
 }
 
@@ -100,6 +141,7 @@ mod math {
 	use std::f32::consts::PI;
 	use std::ops::*;
 
+	#[derive(Copy, Clone)]
 	pub struct Mat4x4 {
 		m: [f32; 16],
 	}
@@ -116,80 +158,76 @@ mod math {
 			}
 		}
 
-		pub fn diagonal(&mut self, d: f32) -> &Mat4x4 {
+		pub fn diagonal(&mut self, d: f32) -> Mat4x4 {
 			self.m = [
 				d, 0.0, 0.0, 0.0,
 				0.0, d, 0.0, 0.0,
 				0.0, 0.0, d, 0.0,
 				0.0, 0.0, 0.0, d,
 			];
-			self
+			*self
 		}
 
-		pub fn identity(&mut self) -> &Mat4x4 {
+		pub fn identity(&mut self) -> Mat4x4 {
 			self.m = [
 				1.0, 0.0, 0.0, 0.0,
 				0.0, 1.0, 0.0, 0.0,
 				0.0, 0.0, 1.0, 0.0,
 				0.0, 0.0, 0.0, 1.0,
 			];
-			self
+			*self
 		}
 
-		pub fn transpose(&mut self) -> &mut Mat4x4 {
-			let t = self.m;
+		pub fn transpose(&mut self) -> Mat4x4 {
 			self.m = [
-				t[0], t[4], t[8], t[12],
-				t[1], t[5], t[9], t[13],
-				t[2], t[6], t[10], t[14],
-				t[3], t[7], t[11], t[15],
+				self.m[0], self.m[4], self.m[8], self.m[12],
+				self.m[1], self.m[5], self.m[9], self.m[13],
+				self.m[2], self.m[6], self.m[10], self.m[14],
+				self.m[3], self.m[7], self.m[11], self.m[15],
 			];
-			self
+			*self
 		}
 
-		pub fn translate(&mut self, t: &Vec3) -> &mut Mat4x4 {
-			let me: Mat4x4 = Mat4x4 { m: self.m };
-			let translate = Mat4x4 { m: [
+		pub fn translate(&mut self, t: Vec3) -> Mat4x4 {
+			let translated = Mat4x4 { m: [
 				1.0, 0.0, 0.0, t.x,
 				0.0, 1.0, 0.0, t.y,
 				0.0, 0.0, 1.0, t.z,
 				0.0, 0.0, 0.0, 1.0,
-			]} * me;
+			]} * *self;
 
-			self.m = translate.m;
-			self
+			self.m = translated.m;
+			*self
 		}
 
-		pub fn scale(&mut self, s: &Vec3) -> &mut Mat4x4 {
-			let me: Mat4x4 = Mat4x4 { m: self.m };
-			let scale = Mat4x4 { m: [
+		pub fn scale(&mut self, s: Vec3) -> Mat4x4 {
+			let scaled = Mat4x4 { m: [
 				s.x, 0.0, 0.0, 0.0,
 				0.0, s.y, 0.0, 0.0,
 				0.0, 0.0, s.z, 0.0,
 				0.0, 0.0, 0.0, 1.0,
-			]} * me;
+			]} * *self;
 
-			self.m = scale.m;
-			self
+			self.m = scaled.m;
+			*self
 		}
 
-		pub fn mirror(&mut self) -> &mut Mat4x4 {
-			let me: Mat4x4 = Mat4x4 { m: self.m };
+		pub fn mirror(&mut self) -> Mat4x4 {
 			let mirror = Mat4x4 { m: [
 				-1.0, 0.0, 0.0, 0.0,
 				0.0, -1.0, 0.0, 0.0,
 				0.0, 0.0, -1.0, 0.0,
 				0.0, 0.0, 0.0, 1.0,
-			]} * me;
+			]} * *self;
 
 			self.m = mirror.m;
-			self
+			*self
 		}
 
-		// TODO: rotate()
+		// TODO: rotate() although 3D rotation is better with Quaternions
 
 		pub fn ortho(&mut self, left: f32, right: f32, bottom: f32, top: f32,
-			z_near: f32, z_far: f32) -> &Mat4x4 {
+			z_near: f32, z_far: f32) -> Mat4x4 {
 
 			let width = right - left;
 			let height = top - bottom;
@@ -201,11 +239,11 @@ mod math {
 				0.0, 0.0, -2.0/depth, -(z_far + z_near)/depth,
 				0.0, 0.0, 0.0, 0.0,
 			];
-			self
+			*self
 		}
 
 		pub fn perspective(&mut self, fovy: f32, aspect_ratio: f32,
-			z_near: f32, z_far: f32) -> &Mat4x4 {
+			z_near: f32, z_far: f32) -> Mat4x4 {
 
 			let rad: f32 = (fovy / 2.0) * PI / 180.0;
 			let y_scale: f32 = 1.0 / rad.tan();
@@ -218,13 +256,13 @@ mod math {
 				0.0, 0.0, (z_far + z_near) / frustum_length, (-2.0)*z_near*z_far/frustum_length,
 				0.0, 0.0, 1.0, 0.0,
 			];
-			self
+			*self
 		}
 
-		pub fn look_at(&mut self, eye: &Vec3, look: &Vec3, up: &Vec3) -> &Mat4x4 {
+		pub fn look_at(&mut self, eye: Vec3, look: Vec3, up: Vec3) -> Mat4x4 {
 			let l = look.normalized();
 			let r = look.cross(up);
-			let u = l.cross(&r).normalized();
+			let u = l.cross(r).normalized();
 
 			//	Calculation of camera matrix:
 			//			  Orientationmatrix		*	  Translationmatrix
@@ -240,10 +278,10 @@ mod math {
 					0.0, 0.0, 0.0, 1.0,
 				];
 
-			self
+			*self
 		}
 
-		pub fn camera(&mut self, position: &Vec3, orientation: &Quaternion) -> &Mat4x4 {
+		pub fn camera(&mut self, position: Vec3, orientation: Quaternion) -> Mat4x4 {
 			let r = orientation.right();
 			let u = orientation.up();
 			let f = orientation.forward();
@@ -255,7 +293,7 @@ mod math {
 					0.0, 0.0, 0.0, 1.0,
 				];
 
-			self
+			*self
 		}
 	}
 
@@ -323,6 +361,7 @@ mod math {
 
 	// ____________________________________________________________________________________________
 	// Quaternion
+	#[derive(Copy, Clone)]
 	pub struct Quaternion {
 		pub x: f32,
 		pub y: f32,
@@ -335,15 +374,15 @@ mod math {
 			Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0, }
 		}
 
-		pub fn set(&mut self, x: f32, y: f32, z: f32, w: f32) -> &Quaternion {
+		pub fn set(&mut self, x: f32, y: f32, z: f32, w: f32) -> Quaternion {
 			self.x = x;
 			self.y = y;
 			self.z = z;
 			self.w = w;
-			self
+			*self
 		}
 
-		pub fn from_axis(&mut self, axis: &Vec3, angle: f32) -> &Quaternion {
+		pub fn from_axis(&mut self, axis: Vec3, angle: f32) -> Quaternion {
 			let half_rad = angle * PI / 360.0;
 			let half_sin = half_rad.sin();
 			let half_cos = half_rad.cos();
@@ -353,10 +392,10 @@ mod math {
 			self.z = axis.z * half_sin;
 			self.w = half_cos;
 
-			self
+			*self
 		}
 
-		pub fn from_euler(&mut self, angles: &Vec3) -> &Quaternion {
+		pub fn from_euler(&mut self, angles: Vec3) -> Quaternion {
 			let rx = angles.x * PI / 360.0;
 			let ry = angles.y * PI / 360.0;
 			let rz = angles.z * PI / 360.0;
@@ -383,7 +422,7 @@ mod math {
 		}
 
 
-		pub fn rotate(&mut self, axis: &Vec3, angle: f32) -> &Quaternion {
+		pub fn rotate(&mut self, axis: Vec3, angle: f32) -> Quaternion {
 			let half_rad = angle * PI / 360.0;
 			let half_sin = half_rad.sin();
 			let half_cos = half_rad.cos();
@@ -418,7 +457,7 @@ mod math {
 			}
 		}
 
-		pub fn normalize(&mut self) -> &Quaternion {
+		pub fn normalize(&mut self) -> Quaternion {
 			let inv_length = 1.0 / self.length();
 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
 			self.set(
@@ -428,7 +467,7 @@ mod math {
 					w * inv_length
 			);
 
-			self
+			*self
 		}
 
 		pub fn length(&self) -> f32 {
@@ -439,20 +478,20 @@ mod math {
 			self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w
 		}
 
-		pub fn dot(&self, q: &Quaternion) -> f32  {
+		pub fn dot(&self, q: Quaternion) -> f32  {
 			self.x * q.x + self.y * q.y + self.z * q.z + self.w * q.w
 		}
 
-		pub fn conjugate(&mut self) -> &Quaternion {
+		pub fn conjugate(&mut self) -> Quaternion {
 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
 			self.x = -x;
 			self.y = -y;
 			self.z = -z;
 			self.w = w;
-			self
+			*self
 		}
 
-		pub fn inverse(&mut self) -> &Quaternion {
+		pub fn inverse(&mut self) -> Quaternion {
 			let inv_length_squared = 1.0 /
 				(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w);
 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
@@ -463,7 +502,7 @@ mod math {
 					w * inv_length_squared
 			);
 
-			self
+			*self
 		}
 
 		// TODO: Make this work
@@ -624,6 +663,7 @@ mod math {
 
 	// ____________________________________________________________________________________________
 	// Vec3
+	#[derive(Copy, Clone)]
 	pub struct Vec3 {
 		pub x: f32,
 		pub y: f32,
@@ -635,18 +675,18 @@ mod math {
 			Vec3 { x: 0.0, y: 0.0, z: 0.0 }
 		}
 
-		pub fn set(&mut self, x: f32, y: f32, z: f32) -> &Vec3 {
+		pub fn set(&mut self, x: f32, y: f32, z: f32) -> Vec3 {
 			self.x = x;
 			self.y = y;
 			self.z = z;
-			self
+			*self
 		}
 
-		fn dot(&self, r: &Vec3) -> f32  {
+		fn dot(&self, r: Vec3) -> f32  {
 			self.x * r.x + self.y * r.y + self.z * r.z
 		}
 
-		fn cross(&self, r: &Vec3) -> Vec3  {
+		fn cross(&self, r: Vec3) -> Vec3  {
 			Vec3 {
 				x: (self.y * r.z) - (self.z * r.y),
 				y: (self.z * r.x) - (self.x * r.z),
@@ -654,7 +694,7 @@ mod math {
 			}
 		}
 
-		fn rotate(&mut self, axis: &Vec3, angle: f32) -> &Vec3 {
+		fn rotate(&mut self, axis: Vec3, angle: f32) -> Vec3 {
 			// Rodrigues' Rotation Formula
 			// v(rot) = v cos(t) + (axis X v) sin(t) + axis ( axis . v ) (1 - cos(t))
 			// v(rot) = a + b + c
@@ -683,10 +723,10 @@ mod math {
 			self.x = ax + bx + cx;
 			self.x = ay + by + cy;
 			self.x = az + bz + cz;
-			self
+			*self
 		}
 
-		fn normalized(&self) -> Vec3 {
+		pub fn normalized(&self) -> Vec3 {
 			let inv_length = 1.0 / self.length();
 			let (x, y, z) = (self.x, self.y, self.z);
 			Vec3 {
@@ -696,7 +736,7 @@ mod math {
 			}
 		}
 
-		fn normalize(&mut self) -> &Vec3 {
+		pub fn normalize(&mut self) -> Vec3 {
 			let inv_length = 1.0 / self.length();
 			let (x, y, z) = (self.x, self.y, self.z);
 			self.set(
@@ -705,26 +745,26 @@ mod math {
 					z * inv_length,
 			);
 
-			self
+			*self
 		}
 
-		fn length(&self) -> f32 {
+		pub fn length(&self) -> f32 {
 			(self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
 		}
 
-		fn length_squared(&self) -> f32 {
+		pub fn length_squared(&self) -> f32 {
 			self.x * self.x + self.y * self.y + self.z * self.z
 		}
 
-		fn distance(v1: Vec3, v2: Vec3) -> f32 {
+		pub fn distance(v1: Vec3, v2: Vec3) -> f32 {
 			(v1 - v2).length()
 		}
 
-		fn distance_squared(v1: Vec3, v2: Vec3) -> f32 {
+		pub fn distance_squared(v1: Vec3, v2: Vec3) -> f32 {
 			(v1 - v2).length_squared()
 		}
 
-		fn lerp(v1: &Vec3, v2: &Vec3, amount: f32) -> Vec3 {
+		pub fn lerp(v1: Vec3, v2: Vec3, amount: f32) -> Vec3 {
 			let diff = 1.0 - amount;
 			Vec3 {
 				x: diff * v1.x + amount * v2.x,
@@ -732,8 +772,6 @@ mod math {
 				z: diff * v1.z + amount * v2.z,
 			}
 		}
-
-		// TODO: move_towards() maybe?
 
 		// TODO: Swizzling and create Vec2 struct
 	}
@@ -795,21 +833,19 @@ mod math {
 	}
 }
 
+// TODO: put Graphics stuff in module graphics
+
 // Textures
 // ________________________________________________________________________________________________
 
 pub struct Texture {
 	id: GLuint,
-	width: i32,
-	height: i32,
 }
 
 impl Texture {
 	pub fn new() -> Texture {
 		Texture {
 			id: 0,
-			width: 0,
-			height: 0,
 		}
 	}
 
@@ -825,18 +861,18 @@ impl Texture {
 		}
 	}
 
-	pub fn load(&mut self, file_path: &str) -> io::Result<GLuint> {
+	pub fn load(&mut self, file_path: &str) {
 		if file_path.to_lowercase().ends_with(".bmp") {
-			self.load_bmp(file_path)
+			self.load_bmp(file_path);
 		} else if file_path.to_lowercase().ends_with(".dds") {
-			self.load_dds(file_path)
+			self.load_dds(file_path);
 		} else {
-			Err(Error::new(ErrorKind::Other, "Not a correct image format!"))
+			println!("Not a correct image format!");
 		}
 	}
 
 	// Loading bmp manually for educational purposes use dds
-	fn load_bmp(&mut self, file_path: &str) -> io::Result<GLuint> {
+	fn load_bmp(&mut self, file_path: &str) -> io::Result<()> {
 		let mut file = try!(File::open(file_path));
 		let mut header: [u8; 54] = [0; 54];
 
@@ -847,23 +883,25 @@ impl Texture {
 			return Err(Error::new(ErrorKind::Other, "Not a bmp file!"));
  		}
 
-		let mut image_size: u32 = 0;
+		let mut image_size: usize = 0;
+		let mut width = 0;
+		let mut height = 0;
 
 		unsafe {
 			let raw_width = [header[0x12], header[0x13], header[0x14], header[0x15]];
-			self.width = std::mem::transmute::<[u8; 4], i32>(raw_width);
+			width = std::mem::transmute::<[u8; 4], i32>(raw_width);
 			let raw_height = [header[0x16], header[0x17], header[0x18], header[0x19]];
-			self.height = std::mem::transmute::<[u8; 4], i32>(raw_height);
+			height = std::mem::transmute::<[u8; 4], i32>(raw_height);
 			let raw_image_size = [header[0x22], header[0x23], header[0x24], header[0x25]];
-			image_size = std::mem::transmute::<[u8; 4], u32>(raw_image_size);
+			image_size = std::mem::transmute::<[u8; 4], u32>(raw_image_size) as usize;
 		}
 
 		if image_size == 0 {
-			image_size = (self.width * self.height * 3) as u32;
+			image_size = (width * height * 3) as usize;
 		}
 
 		// Data
-		let mut data = vec![0; image_size as usize];
+		let mut data = vec![0; image_size];
 		try!(file.read(&mut data)); // Read from where header ended
 
 		// Give data to OpenGL and create texture
@@ -876,7 +914,7 @@ impl Texture {
 			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
 			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
 
-			gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGB as i32, self.width, self.height,
+			gl::TexImage2D(gl::TEXTURE_2D, 0, gl::RGB as i32, width, height,
 				0, gl::BGR, gl::UNSIGNED_BYTE, std::mem::transmute(&data[0]));
 
 			gl::GenerateMipmap(gl::TEXTURE_2D);
@@ -885,13 +923,13 @@ impl Texture {
 			gl::BindTexture(gl::TEXTURE_2D, 0);
 		}
 
-		Ok(self.id)
+		Ok(())
 	}
 
 	// Compress png images with AMDCompress(CLI) to dds
 	// Only use compressed images (DXT1 = BC1), (DXT3 = BC2), (DXT5 = BC3)
 	// For sprites compress to DXT5 for alpha (gradient) channel
-	fn load_dds(&mut self, file_path: &str) -> io::Result<GLuint> {
+	fn load_dds(&mut self, file_path: &str) -> io::Result<()> {
 		let mut file = try!(File::open(file_path));
 		let mut header: [u8; 128] = [0; 128];
 
@@ -902,30 +940,24 @@ impl Texture {
 			return Err(Error::new(ErrorKind::Other, "Not a dds file!"));
  		}
 
-		let mut linear_size: u32 = 0;
-		let mut mipmap_count: u32 = 0;
-		let mut four_cc: u32 = 0;
+		let raw_height = [header[12], header[13], header[14], header[15]];
+		let mut height = unsafe { std::mem::transmute::<[u8; 4], i32>(raw_height) };
 
-		unsafe {
-			let raw_height = [header[12], header[13], header[14], header[15]];
-			self.height = std::mem::transmute::<[u8; 4], i32>(raw_height);
+		let raw_width = [header[16], header[17], header[18], header[19]];
+		let mut width = unsafe { std::mem::transmute::<[u8; 4], i32>(raw_width) };
 
-			let raw_width = [header[16], header[17], header[18], header[19]];
-			self.width = std::mem::transmute::<[u8; 4], i32>(raw_width);
+		let raw_linear_size = [header[20], header[21], header[22], header[23]];
+		let linear_size = unsafe { std::mem::transmute::<[u8; 4], u32>(raw_linear_size) };
 
-			let raw_linear_size = [header[20], header[21], header[22], header[23]];
-			linear_size = std::mem::transmute::<[u8; 4], u32>(raw_linear_size);
+		let raw_mipmap_count = [header[28], header[29], header[30], header[31]];
+		let mipmap_count = unsafe { std::mem::transmute::<[u8; 4], u32>(raw_mipmap_count) };
 
-			let raw_mipmap_count = [header[28], header[29], header[30], header[31]];
-			mipmap_count = std::mem::transmute::<[u8; 4], u32>(raw_mipmap_count);
-
-			let raw_four_cc = [header[84], header[85], header[86], header[87]];
-			four_cc = std::mem::transmute::<[u8; 4], u32>(raw_four_cc);
-		}
+		let raw_four_cc = [header[84], header[85], header[86], header[87]];
+		let four_cc = unsafe { std::mem::transmute::<[u8; 4], u32>(raw_four_cc) };
 
 		// Data
-		let image_size = if mipmap_count > 1 { linear_size * 2 } else { linear_size };
-		let mut data = vec![0; image_size as usize];
+		let image_size = if mipmap_count > 1 { linear_size * 2 } else { linear_size } as usize;
+		let mut data = vec![0; image_size];
 		try!(file.read(&mut data)); // Read from where header ended
 
 		const FOURCC_DXT1: u32 = 0x31545844;
@@ -955,31 +987,33 @@ impl Texture {
 			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_WRAP_T, gl::CLAMP_TO_EDGE as i32);	// REPEAT
 			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MAG_FILTER, gl::LINEAR as i32);
 			gl::TexParameteri(gl::TEXTURE_2D, gl::TEXTURE_MIN_FILTER, gl::LINEAR as i32);
+		}
 
-			// Load mipmaps
-			let mut width = self.width;
-			let mut height = self.height;
+		// Load mipmaps
 
-			let mut level = 0;
-			let mut offset = 0;
+		let mut level = 0;
+		let mut offset = 0;
 
-			while level < mipmap_count && width > 0 && height > 0 {
-				let size = ((width+3)/4)*((height+3)/4)*block_size;
+		while level < mipmap_count && width > 0 && height > 0 {
+			let size = ((width+3)/4)*((height+3)/4)*block_size;
+			unsafe {
 				gl::CompressedTexImage2D(gl::TEXTURE_2D, level as i32, format, width, height,
 					0, size, std::mem::transmute(&data[offset as usize]));
-
-				offset += size;
-				width /= 2;
-				height /= 2;
-
-				level += 1;
 			}
 
-			data.clear();
+			offset += size;
+			width /= 2;
+			height /= 2;
+
+			level += 1;
+		}
+
+		data.clear();
+		unsafe {
 			gl::BindTexture(gl::TEXTURE_2D, 0);
 		}
 
-		Ok(self.id)
+		Ok(())
 	}
 }
 
@@ -1085,10 +1119,9 @@ impl InternalShader {
 		}
 	}
 
-	pub fn set_vec4(&self, uniform: &Uniform, value: &Vec4) {
+	pub fn set_vec4(&self, uniform: &Uniform, value: Vec4) {
 		unsafe {
-			gl::Uniform4f(uniform.id,
-				value.x, value.y, value.z, value.w);
+			gl::Uniform4f(uniform.id, value.x, value.y, value.z, value.w);
 		}
 	}
 
@@ -1167,13 +1200,9 @@ impl<'a> Shader for BasicShader<'a> {
 
 	fn update_uniforms(&self, dt: f32) {
 		// Unique implementation
-		//self.shader.set_vec4(&self.uniform_color, &Vec4{ x: 1.0, y: 1.0, z: 0.0, w: 1.0});
-		let mut transform = Mat4x4::new();
-		transform.scale(&Vec3{ x: 0.5, y: 0.5, z: 0.5 });
-		let mut orientation = Quaternion::new();
-		orientation.rotate(&Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0);
-		transform = orientation.matrix() * transform;
-		transform.translate(&Vec3{ x: 0.5, y: -0.5, z: 0.0 });
+		let mut transform = Mat4x4::new().scale(Vec3{ x: 0.5, y: 0.5, z: 0.5 });
+		let mut orientation = Quaternion::new().rotate(Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0);
+		transform = (orientation.matrix() * transform).translate(Vec3{ x: 0.5, y: -0.5, z: 0.0 });
 		self.shader.set_mat4x4(&self.uniform_transform, &transform);
 	}
 }
