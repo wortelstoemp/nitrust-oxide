@@ -24,8 +24,8 @@ use std::ptr;
 use std::str;
 use std::ffi::CString;
 
-use math::*;
 use core::*;
+use math::*;
 
 mod core {
 	use time::PreciseTime;
@@ -1204,6 +1204,106 @@ impl<'a> Shader for BasicShader<'a> {
 		let mut orientation = Quaternion::new().rotate(Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0);
 		transform = (orientation.matrix() * transform).translate(Vec3{ x: 0.5, y: -0.5, z: 0.0 });
 		self.shader.set_mat4x4(&self.uniform_transform, &transform);
+	}
+}
+
+// Try to write everything in a modular way
+
+mod engine {
+	mod core {
+		pub trait CoreSystem {
+			fn init(&self);
+			fn update(&self, dt: f32);
+			fn shutdown(&self);
+		}
+	}
+
+	mod messaging {
+		use engine::graphics::GraphicsSystem;
+		use std::sync::mpsc::{ channel, Sender, Receiver };
+
+		pub struct MessageSystem<'a> {
+			sender: Sender<Message>,
+			receiver: Receiver<Message>,
+			graphics_system: Option<&'a GraphicsSystem<'a>>,
+		}
+
+		impl<'a> MessageSystem<'a> {
+			pub fn new() -> MessageSystem<'a> {
+				let (sender, receiver) = channel();
+				MessageSystem {
+					sender: sender,
+					receiver: receiver,
+					graphics_system: None::<&'a GraphicsSystem<'a>>,
+				}
+
+			}
+
+			pub fn send(&self, msg: Message) {
+
+			}
+		}
+		pub enum Message {
+			Quit,
+			Test,
+			TestData{ x: f32, y: f32 },
+			None,
+		}
+
+		pub trait Messager {
+			fn send(&self, msg: Message);
+			//fn recv(&self);
+			fn handle_message(&self, msg: Message);
+		}
+	}
+
+	// Test Messaging
+	// TODO: test with https://doc.rust-lang.org/std/sync/mpsc/index.html
+	// for multithreading (can be single threaded if not using thread::spawn()):
+	// use std::sync::mpsc::channel;
+    //
+    // // Create a simple streaming channel
+    // let (tx, rx) = channel();	// Sender, Receiver
+    // //thread::spawn(move|| {
+    //     tx.send(10).unwrap();
+    // //});
+    // println!("{}", rx.recv().unwrap());
+
+	mod graphics {
+		use engine::core::CoreSystem;
+		use engine::messaging::*;
+
+		pub struct GraphicsSystem<'a> {
+			message_system: &'a MessageSystem<'a>,	// use: message_system.post_message(msg);
+		}
+
+		impl<'a> CoreSystem for GraphicsSystem<'a> {
+			fn init(&self) {
+				println!("Init");
+			}
+
+			fn update(&self, dt: f32) {
+				println!("Update");
+			}
+
+			fn shutdown(&self) {
+				println!("Shutdown");
+			}
+		}
+
+		impl<'a> Messager for GraphicsSystem<'a> {
+			fn send(&self, msg: Message) {
+				self.message_system.send(msg);
+			}
+
+			fn handle_message(&self, msg: Message) {
+				match msg {
+					Message::TestData{x, y} => { println!("Data: {}, {}", x, y) },
+					Message::Test | Message::Quit => { println!("Quit") },
+					_ => {}
+				}
+			}
+		}
 	}
 }
 
