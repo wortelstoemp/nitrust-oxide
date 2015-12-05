@@ -25,11 +25,13 @@ use std::str;
 use std::ffi::CString;
 
 use core::*;
-use math::*;
+
+mod framework;
+use framework::math::{ Mat4x4, Quaternion, Vec3, Vec4 };
 
 mod core {
 	use time::PreciseTime;
-	use math::*;
+	use framework::math::{ Mat4x4, Quaternion, Vec3, Vec4 };
 
 	pub struct Clock {
 		current: PreciseTime,
@@ -136,702 +138,702 @@ mod core {
 	}
 }
 
-mod math {
-	use std::f32;
-	use std::f32::consts::PI;
-	use std::ops::*;
-
-	#[derive(Copy, Clone)]
-	pub struct Mat4x4 {
-		m: [f32; 16],
-	}
-
-	impl Mat4x4 {
-		pub fn new() -> Mat4x4 {
-			Mat4x4 {
-				m: [
-					1.0, 0.0, 0.0, 0.0,
-					0.0, 1.0, 0.0, 0.0,
-					0.0, 0.0, 1.0, 0.0,
-					0.0, 0.0, 0.0, 1.0,
-				],
-			}
-		}
-
-		pub fn diagonal(&mut self, d: f32) -> Mat4x4 {
-			self.m = [
-				d, 0.0, 0.0, 0.0,
-				0.0, d, 0.0, 0.0,
-				0.0, 0.0, d, 0.0,
-				0.0, 0.0, 0.0, d,
-			];
-			*self
-		}
-
-		pub fn identity(&mut self) -> Mat4x4 {
-			self.m = [
-				1.0, 0.0, 0.0, 0.0,
-				0.0, 1.0, 0.0, 0.0,
-				0.0, 0.0, 1.0, 0.0,
-				0.0, 0.0, 0.0, 1.0,
-			];
-			*self
-		}
-
-		pub fn transpose(&mut self) -> Mat4x4 {
-			self.m = [
-				self.m[0], self.m[4], self.m[8], self.m[12],
-				self.m[1], self.m[5], self.m[9], self.m[13],
-				self.m[2], self.m[6], self.m[10], self.m[14],
-				self.m[3], self.m[7], self.m[11], self.m[15],
-			];
-			*self
-		}
-
-		pub fn translate(&mut self, t: Vec3) -> Mat4x4 {
-			let translated = Mat4x4 { m: [
-				1.0, 0.0, 0.0, t.x,
-				0.0, 1.0, 0.0, t.y,
-				0.0, 0.0, 1.0, t.z,
-				0.0, 0.0, 0.0, 1.0,
-			]} * *self;
-
-			self.m = translated.m;
-			*self
-		}
-
-		pub fn scale(&mut self, s: Vec3) -> Mat4x4 {
-			let scaled = Mat4x4 { m: [
-				s.x, 0.0, 0.0, 0.0,
-				0.0, s.y, 0.0, 0.0,
-				0.0, 0.0, s.z, 0.0,
-				0.0, 0.0, 0.0, 1.0,
-			]} * *self;
-
-			self.m = scaled.m;
-			*self
-		}
-
-		pub fn mirror(&mut self) -> Mat4x4 {
-			let mirror = Mat4x4 { m: [
-				-1.0, 0.0, 0.0, 0.0,
-				0.0, -1.0, 0.0, 0.0,
-				0.0, 0.0, -1.0, 0.0,
-				0.0, 0.0, 0.0, 1.0,
-			]} * *self;
-
-			self.m = mirror.m;
-			*self
-		}
-
-		// TODO: rotate() although 3D rotation is better with Quaternions
-
-		pub fn ortho(&mut self, left: f32, right: f32, bottom: f32, top: f32,
-			z_near: f32, z_far: f32) -> Mat4x4 {
-
-			let width = right - left;
-			let height = top - bottom;
-			let depth = z_far - z_near;
-
-			self.m = [
-				2.0/width, 0.0, 0.0, -(right+left)/width,
-				0.0, 2.0/height, 0.0, -(top+bottom)/height,
-				0.0, 0.0, -2.0/depth, -(z_far + z_near)/depth,
-				0.0, 0.0, 0.0, 0.0,
-			];
-			*self
-		}
-
-		pub fn perspective(&mut self, fovy: f32, aspect_ratio: f32,
-			z_near: f32, z_far: f32) -> Mat4x4 {
-
-			let rad: f32 = (fovy / 2.0) * PI / 180.0;
-			let y_scale: f32 = 1.0 / rad.tan();
-			let x_scale: f32 = y_scale / aspect_ratio;
-			let frustum_length: f32 = z_far - z_near;
-
-			self.m = [
-				x_scale, 0.0, 0.0, 0.0,
-				0.0, y_scale, 0.0, 0.0,
-				0.0, 0.0, (z_far + z_near) / frustum_length, (-2.0)*z_near*z_far/frustum_length,
-				0.0, 0.0, 1.0, 0.0,
-			];
-			*self
-		}
-
-		pub fn look_at(&mut self, eye: Vec3, look: Vec3, up: Vec3) -> Mat4x4 {
-			let l = look.normalized();
-			let r = look.cross(up);
-			let u = l.cross(r).normalized();
-
-			//	Calculation of camera matrix:
-			//			  Orientationmatrix		*	  Translationmatrix
-			//		|right.x  up.x  -look.x  0|			  |1 0 0 -eye.x	|
-			//		|right.y  up.y  -look.y  0|			  |0 1 0 -eye.x	|
-			//		|right.z  up.z  -look.z  0|			  |0 0 1 -eye.x	|
-			//		|0 		  0 	0 		 1|			  |0 0 0  1		|
-
-			self.m = [
-					r.x, u.x, -l.x, -r.x * eye.x - u.x *eye.y + l.x *eye.z,
-					r.y, u.y, -l.y, -r.y * eye.x - u.y *eye.y + l.y *eye.z,
-					r.z, u.z, -l.z, -r.z * eye.x - u.z *eye.y + l.z *eye.z,
-					0.0, 0.0, 0.0, 1.0,
-				];
-
-			*self
-		}
-
-		pub fn camera(&mut self, position: Vec3, orientation: Quaternion) -> Mat4x4 {
-			let r = orientation.right();
-			let u = orientation.up();
-			let f = orientation.forward();
-
-			self.m = [
-					r.x, r.y, r.z, -r.x * position.x - r.y * position.y - r.z * position.z,
-					u.x, u.y, u.z, -u.x * position.x - u.y * position.y - u.z * position.z,
-					f.x, f.y, f.z, -f.x * position.x - f.y * position.y - f.z * position.z,
-					0.0, 0.0, 0.0, 1.0,
-				];
-
-			*self
-		}
-	}
-
-	impl Add for Mat4x4 {
-		type Output = Mat4x4;
-
-		fn add(self, r: Mat4x4) -> Mat4x4 {
-			let mut res = Mat4x4::new();
-			res.m = [
-				self.m[0]+r.m[0], self.m[1]+r.m[1], self.m[2]+r.m[2], self.m[3]+r.m[3],
-				self.m[4]+r.m[4], self.m[5]+r.m[5], self.m[6]+r.m[6], self.m[7]+r.m[7],
-				self.m[8]+r.m[8], self.m[9]+r.m[9], self.m[10]+r.m[10], self.m[11]+r.m[11],
-				self.m[12]+r.m[12], self.m[13]+r.m[13], self.m[14]+r.m[14], self.m[15]+r.m[15],
-			];
-			res
-		}
-	}
-
-	impl Sub for Mat4x4 {
-		type Output = Mat4x4;
-
-		fn sub(self, r: Mat4x4) -> Mat4x4 {
-			let mut res = Mat4x4::new();
-			res.m = [
-				self.m[0]-r.m[0], self.m[1]-r.m[1], self.m[2]-r.m[2], self.m[3]-r.m[3],
-				self.m[4]-r.m[4], self.m[5]-r.m[5], self.m[6]-r.m[6], self.m[7]-r.m[7],
-				self.m[8]-r.m[8], self.m[9]-r.m[9], self.m[10]-r.m[10], self.m[11]-r.m[11],
-				self.m[12]-r.m[12], self.m[13]-r.m[13], self.m[14]-r.m[14], self.m[15]-r.m[15],
-			];
-			res
-		}
-	}
-
-	impl Mul<Mat4x4> for Mat4x4 {
-		type Output = Mat4x4;
-
-		fn mul(self, r: Mat4x4) -> Mat4x4 {
-			Mat4x4 { m: [
-				// Row 0
-				self.m[0]*r.m[0] + self.m[3]*r.m[12] + self.m[1]*r.m[4] + self.m[2]*r.m[8],
-				self.m[0]*r.m[1] + self.m[3]*r.m[13] + self.m[1]*r.m[5] + self.m[2]*r.m[9],
-				self.m[2]*r.m[10] + self.m[3]*r.m[14] + self.m[0]*r.m[2] + self.m[1]*r.m[6],
-				self.m[2]*r.m[11] + self.m[3]*r.m[15] + self.m[0]*r.m[3] + self.m[1]*r.m[7],
-
-				// Row 1
-				self.m[4]*r.m[0] + self.m[7]*r.m[12] + self.m[5]*r.m[4] + self.m[6]*r.m[8],
-				self.m[4]*r.m[1] + self.m[7]*r.m[13] + self.m[5]*r.m[5] + self.m[6]*r.m[9],
-				self.m[6]*r.m[10] + self.m[7]*r.m[14] + self.m[4]*r.m[2] + self.m[5]*r.m[6],
-				self.m[6]*r.m[11] + self.m[7]*r.m[15] + self.m[4]*r.m[3] + self.m[5]*r.m[7],
-
-				// Row 2
-				self.m[8]*r.m[0] + self.m[11]*r.m[12] + self.m[9]*r.m[4] + self.m[10]*r.m[8],
-				self.m[8]*r.m[1] + self.m[11]*r.m[13] + self.m[9]*r.m[5] + self.m[10]*r.m[9],
-				self.m[10]*r.m[10] + self.m[11]*r.m[14] + self.m[8]*r.m[2] + self.m[9]*r.m[6],
-				self.m[10]*r.m[11] + self.m[11]*r.m[15] + self.m[8]*r.m[3] + self.m[9]*r.m[7],
-
-				// Row 3
-				self.m[12]*r.m[0] + self.m[15]*r.m[12] + self.m[13]*r.m[4] + self.m[14]*r.m[8],
-				self.m[12]*r.m[1] + self.m[15]*r.m[13] + self.m[13]*r.m[5] + self.m[14]*r.m[9],
-				self.m[14]*r.m[10] + self.m[15]*r.m[14] + self.m[12]*r.m[2] + self.m[13]*r.m[6],
-				self.m[14]*r.m[11] + self.m[15]*r.m[15] + self.m[12]*r.m[3] + self.m[13]*r.m[7],
-			]}
-		}
-	}
-
-	// ____________________________________________________________________________________________
-	// Quaternion
-	#[derive(Copy, Clone)]
-	pub struct Quaternion {
-		pub x: f32,
-		pub y: f32,
-		pub z: f32,
-		pub w: f32,
-	}
-
-	impl Quaternion {
-		pub fn new() -> Quaternion {
-			Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0, }
-		}
-
-		pub fn set(&mut self, x: f32, y: f32, z: f32, w: f32) -> Quaternion {
-			self.x = x;
-			self.y = y;
-			self.z = z;
-			self.w = w;
-			*self
-		}
-
-		pub fn from_axis(&mut self, axis: Vec3, angle: f32) -> Quaternion {
-			let half_rad = angle * PI / 360.0;
-			let half_sin = half_rad.sin();
-			let half_cos = half_rad.cos();
-
-			self.x = axis.x * half_sin;
-			self.y = axis.y * half_sin;
-			self.z = axis.z * half_sin;
-			self.w = half_cos;
-
-			*self
-		}
-
-		pub fn from_euler(&mut self, angles: Vec3) -> Quaternion {
-			let rx = angles.x * PI / 360.0;
-			let ry = angles.y * PI / 360.0;
-			let rz = angles.z * PI / 360.0;
-
-			let sin_x = rx.sin();
-			let sin_y = ry.sin();
-			let sin_z = -rz.sin();
-
-			let cos_x = rx.cos();
-			let cos_y = ry.cos();
-			let cos_z = rz.cos();
-
-			let sin_x_sin_y = sin_x * sin_y;
-			let cos_x_cos_y = cos_x * cos_y;
-			let cos_x_sin_y = cos_x * sin_y;
-			let cos_y_sin_x = cos_y * sin_x;
-
-			self.x = cos_x_sin_y * sin_z + cos_y_sin_x * cos_z;
-			self.y = cos_x_sin_y * cos_z + cos_y_sin_x * sin_z;
-			self.z = cos_x_cos_y * sin_z - sin_x_sin_y * cos_z;
-			self.w = cos_x_cos_y * cos_z - sin_x_sin_y * sin_z;
-
-			self.normalize()
-		}
-
-
-		pub fn rotate(&mut self, axis: Vec3, angle: f32) -> Quaternion {
-			let half_rad = angle * PI / 360.0;
-			let half_sin = half_rad.sin();
-			let half_cos = half_rad.cos();
-
-			let axis_norm = axis.normalized();
-
-			let rx = -axis_norm.x * half_sin;
-			let ry = -axis_norm.y * half_sin;
-			let rz = -axis_norm.z * half_sin;
-			let rw = half_cos;
-
-			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
-
-			self.set(
-				rw * x + rx * w + ry * z - rz * y,
-				rw * y + ry * w + rz * x - rx * z,
-				rw * z + rz * w + rx * y - ry * x,
-			 	rw * w - rx * x - ry * y - rz * z
-			);
-
-			self.normalize()
-		}
-
-		pub fn normalized(&self) -> Quaternion {
-			let inv_length = 1.0 / self.length();
-			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
-			Quaternion {
-				x: x * inv_length,
-				y: y * inv_length,
-				z: z * inv_length,
-				w: w * inv_length,
-			}
-		}
-
-		pub fn normalize(&mut self) -> Quaternion {
-			let inv_length = 1.0 / self.length();
-			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
-			self.set(
-					x * inv_length,
-					y * inv_length,
-					z * inv_length,
-					w * inv_length
-			);
-
-			*self
-		}
-
-		pub fn length(&self) -> f32 {
-			(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w).sqrt()
-		}
-
-		pub fn length_squared(&self) -> f32 {
-			self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w
-		}
-
-		pub fn dot(&self, q: Quaternion) -> f32  {
-			self.x * q.x + self.y * q.y + self.z * q.z + self.w * q.w
-		}
-
-		pub fn conjugate(&mut self) -> Quaternion {
-			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
-			self.x = -x;
-			self.y = -y;
-			self.z = -z;
-			self.w = w;
-			*self
-		}
-
-		pub fn inverse(&mut self) -> Quaternion {
-			let inv_length_squared = 1.0 /
-				(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w);
-			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
-			self.set(
-					-x * inv_length_squared,
-					-y * inv_length_squared,
-					-z * inv_length_squared,
-					w * inv_length_squared
-			);
-
-			*self
-		}
-
-		// TODO: Make this work
-		// pub fn slerp(q1: &Quaternion, q2: &Quaternion, amount: f32) -> Quaternion {
-		// 	let epsilon = 1000.0;
-		// 	let mut cos = q1.dot(q2);
-		// 	let mut res = Quaternion{ x: q2.x, y: q2.y, z: q2.z, w: q2.w };
-		//
-		// 	if cos < 0.0 {
-		// 		cos = -cos;
-		// 		res = Quaternion{ x: -(q2.x), y: -(q2.y), z: -(q2.z), w: -(q2.w) };
-		// 	}
-		//
-		// 	if cos.abs() >= (1.0 - epsilon) {
-		// 		return res;
-		// 		// return destination.subtr(q1).mult(amount).add(q1).normalize();
-		// 	}
-		//
-		// 	let sin = (1.0 - cos * cos).sqrt();
-		// 	let angle = sin.atan2(cos);
-		// 	let inv_sin =  1.0 / sin;
-		//
-		// 	let src_factor = ((1.0 - amount) * angle).sin() * inv_sin;
-		// 	let dest_factor = (amount * angle).sin() * inv_sin;
-		//
-		// 	res // q1.mult(sourceFactor).add(destination.mult(destinationFactor));
-		// }
-
-		// TODO: Make this work
-		// pub fn nlerp(q1: Quaternion, q2: Quaternion, amount: f32) -> Quaternion {
-		// 	let mut res = Quaternion {x: q2.x, y: q2.y, z: q2.z, w: q2.w };
-		//
-		// 	if q1.dot(&q2) < 0.0 {
-		// 		res = Quaternion {x: -(q2.x), y: -(q2.y), z: -(q2.z), w: -(q2.w)};
-		// 	}
-		//
-		// 	*((((res - q1) * amount) + q1).normalize())
-		// }
-
-		pub fn matrix(&self) -> Mat4x4 {
-			let xx2 = 2.0 * self.x * self.x;
-			let xy2 = 2.0 * self.x * self.y;
-			let xz2 = 2.0 * self.x * self.z;
-			let xw2 = 2.0 * self.x * self.w;
-			let yy2 = 2.0 * self.y * self.y;
-			let yz2 = 2.0 * self.y * self.z;
-			let yw2 = 2.0 * self.y * self.w;
-			let zz2 = 2.0 * self.z * self.z;
-			let zw2 = 2.0 * self.z * self.w;
-
-			Mat4x4 {
-				m: [
-					1.0 - (yy2 + zz2), xy2 + zw2, xz2 - yw2, 0.0,
-				 	xy2 - zw2, 1.0 - (xx2 + zz2), yz2 + xw2, 0.0,
-				 	xz2 + yw2, yz2 - xw2, 1.0 - (xx2 + yy2), 0.0,
-				 	0.0, 0.0, 0.0, 1.0
-				],
-			}
-
-		}
-
-		pub fn forward(&self) -> Vec3 {
-			Vec3 {
-				x: 2.0 * self.x * self.z + 2.0 * self.y * self.w,
-				y: 2.0 * self.y * self.x - 2.0 * self.x * self.w,
-				z: 1.0 - (2.0 * self.x * self.x + 2.0 * self.y * self.y),
-			}
-		}
-
-		pub fn backward(&self) -> Vec3 {
-			Vec3 {
-				x: -2.0 * self.x * self.z - 2.0 * self.y * self.w,
-				y: -2.0 * self.y * self.x + 2.0 * self.x * self.w,
-				z: -1.0 + (2.0 * self.x * self.x + 2.0 * self.y * self.y),
-			}
-		}
-
-		pub fn up(&self) -> Vec3 {
-			Vec3 {
-				x: 2.0 * self.x * self.y - 2.0 * self.z * self.w,
-				y: 1.0 - (2.0 * self.x * self.x + 2.0 * self.z * self.z),
-				z: 2.0 * self.y * self.z + 2.0 * self.x * self.w,
-			}
-		}
-
-		pub fn down(&self) -> Vec3 {
-			Vec3 {
-				x: -2.0 * self.x * self.y + 2.0 * self.z * self.w,
-				y: -1.0 + (2.0 * self.x * self.x + 2.0 * self.z * self.z),
-				z: -2.0 * self.y * self.z - 2.0 * self.x * self.w,
-			}
-		}
-
-		pub fn right(&self) -> Vec3 {
-			Vec3 {
-				x: -1.0 + (2.0 * self.y * self.y + 2.0 * self.z * self.z),
-				y: -2.0 * self.x * self.y - 2.0 * self.z * self.w,
-				z: -2.0 * self.x * self.z + 2.0 * self.y * self.w,
-			}
-		}
-
-		pub fn left(&self) -> Vec3 {
-			Vec3 {
-				x: 1.0 - (2.0 * self.y * self.y + 2.0 * self.z * self.z),
-				y: 2.0 * self.x * self.y + 2.0 * self.z * self.w,
-				z: 2.0 * self.x * self.z - 2.0 * self.y * self.w,
-			}
-		}
-
-	}
-
-	impl Add for Quaternion {
-		type Output = Quaternion;
-
-		fn add(self, r: Quaternion) -> Quaternion {
-			Quaternion {
-				x: self.x + r.x,
-				y: self.y + r.y,
-				z: self.z + r.z,
-				w: self.w + r.w,
-			}
-		}
-	}
-
-	impl Sub for Quaternion {
-		type Output = Quaternion;
-
-		fn sub(self, r: Quaternion) -> Quaternion {
-			Quaternion {
-				x: self.x - r.x,
-				y: self.y - r.y,
-				z: self.z - r.z,
-				w: self.w - r.w,
-			}
-		}
-	}
-
-	impl Mul<Quaternion> for Quaternion {
-		type Output = Quaternion;
-
-		fn mul(self, r: Quaternion) -> Quaternion {
-			Quaternion {
-				x: self.w * r.x + self.x * r.w + self.y * r.z - self.z * r.y,
-				y: self.w * r.y + self.y * r.w + self.z * r.x - self.x * r.z,
-				z: self.w * r.z + self.z * r.w + self.x * r.y - self.y * r.x,
-				w: self.w * r.w - self.x * r.x - self.y * r.y - self.z * r.z,
-			}
-		}
-	}
-
-	impl Mul<f32> for Quaternion {
-		type Output = Quaternion;
-
-		fn mul(self, r: f32) -> Quaternion {
-			Quaternion { x: self.x * r, y: self.y * r, z: self.z * r, w: self.w * r }
-		}
-	}
-
-	// ____________________________________________________________________________________________
-	// Vec3
-	#[derive(Copy, Clone)]
-	pub struct Vec3 {
-		pub x: f32,
-		pub y: f32,
-		pub z: f32,
-	}
-
-	impl Vec3 {
-		pub fn new() -> Vec3 {
-			Vec3 { x: 0.0, y: 0.0, z: 0.0 }
-		}
-
-		pub fn set(&mut self, x: f32, y: f32, z: f32) -> Vec3 {
-			self.x = x;
-			self.y = y;
-			self.z = z;
-			*self
-		}
-
-		fn dot(&self, r: Vec3) -> f32  {
-			self.x * r.x + self.y * r.y + self.z * r.z
-		}
-
-		fn cross(&self, r: Vec3) -> Vec3  {
-			Vec3 {
-				x: (self.y * r.z) - (self.z * r.y),
-				y: (self.z * r.x) - (self.x * r.z),
-				z: (self.x * r.y) - (self.y * r.x),
-			}
-		}
-
-		fn rotate(&mut self, axis: Vec3, angle: f32) -> Vec3 {
-			// Rodrigues' Rotation Formula
-			// v(rot) = v cos(t) + (axis X v) sin(t) + axis ( axis . v ) (1 - cos(t))
-			// v(rot) = a + b + c
-
-			let t = angle * PI / 180.0;
-			let sin_t = t.sin();
-			let cos_t = t.cos();
-
-			// a = v cos(t)
-			let ax = self.x * cos_t;
-			let ay = self.y * cos_t;
-			let az = self.z * cos_t;
-
-			// b = (axis X v) sin(t)
-			let bx = ((axis.y * self.z) - (axis.z * self.y)) * sin_t;
-			let by = ((axis.z * self.x) - (axis.x * self.z)) * sin_t;
-			let bz = ((axis.x * self.y) - (axis.y * self.x)) * sin_t;
-
-			// c = axis ( axis . v ) (1 - cos(t))
-			let scale = self.dot(axis) * (1.0 - cos_t);
-			let cx = axis.x * scale;
-			let cy = axis.y * scale;
-			let cz = axis.z * scale;
-
-			// v(rot) = a + b + c
-			self.x = ax + bx + cx;
-			self.x = ay + by + cy;
-			self.x = az + bz + cz;
-			*self
-		}
-
-		pub fn normalized(&self) -> Vec3 {
-			let inv_length = 1.0 / self.length();
-			let (x, y, z) = (self.x, self.y, self.z);
-			Vec3 {
-				x: x * inv_length,
-				y: y * inv_length,
-				z: z * inv_length,
-			}
-		}
-
-		pub fn normalize(&mut self) -> Vec3 {
-			let inv_length = 1.0 / self.length();
-			let (x, y, z) = (self.x, self.y, self.z);
-			self.set(
-					x * inv_length,
-					y * inv_length,
-					z * inv_length,
-			);
-
-			*self
-		}
-
-		pub fn length(&self) -> f32 {
-			(self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
-		}
-
-		pub fn length_squared(&self) -> f32 {
-			self.x * self.x + self.y * self.y + self.z * self.z
-		}
-
-		pub fn distance(v1: Vec3, v2: Vec3) -> f32 {
-			(v1 - v2).length()
-		}
-
-		pub fn distance_squared(v1: Vec3, v2: Vec3) -> f32 {
-			(v1 - v2).length_squared()
-		}
-
-		pub fn lerp(v1: Vec3, v2: Vec3, amount: f32) -> Vec3 {
-			let diff = 1.0 - amount;
-			Vec3 {
-				x: diff * v1.x + amount * v2.x,
-				y: diff * v1.y + amount * v2.y,
-				z: diff * v1.z + amount * v2.z,
-			}
-		}
-
-		// TODO: Swizzling and create Vec2 struct
-	}
-
-	impl Add for Vec3 {
-		type Output = Vec3;
-
-		fn add(self, r: Vec3) -> Vec3 {
-			Vec3 { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z }
-		}
-	}
-
-	impl Sub for Vec3 {
-		type Output = Vec3;
-
-		fn sub(self, r: Vec3) -> Vec3 {
-			Vec3 { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z }
-		}
-	}
-
-	impl Mul<f32> for Vec3 {
-		type Output = Vec3;
-
-		fn mul(self, r: f32) -> Vec3 {
-			Vec3 {  x: self.x * r, y: self.y * r, z: self.z * r }
-		}
-	}
-
-	impl Div<f32> for Vec3 {
-		type Output = Vec3;
-
-		fn div(self, r: f32) -> Vec3 {
-			let inv = if r != 0.0 { 1.0 / r } else { f32::MAX };
-			Vec3 { x: self.x * inv, y: self.y * inv, z: self.z * inv }
-		}
-	}
-
-	impl Neg for Vec3 {
-		type Output = Vec3;
-
-		fn neg(self) -> Vec3 {
-			Vec3 { x: -self.x, y: -self.y, z: -self.z }
-		}
-	}
-
-	// ____________________________________________________________________________________________
-	// Vec4
-	pub struct Vec4 {
-		pub x: f32,
-		pub y: f32,
-		pub z: f32,
-		pub w: f32,
-	}
-
-	impl Vec4 {
-		pub fn new() -> Vec4 {
-			Vec4 { x: 0.0, y: 0.0, z: 0.0, w: 0.0 }
-		}
-	}
-}
+// mod math {
+// 	use std::f32;
+// 	use std::f32::consts::PI;
+// 	use std::ops::*;
+// 
+// 	#[derive(Copy, Clone)]
+// 	pub struct Mat4x4 {
+// 		m: [f32; 16],
+// 	}
+// 
+// 	impl Mat4x4 {
+// 		pub fn new() -> Mat4x4 {
+// 			Mat4x4 {
+// 				m: [
+// 					1.0, 0.0, 0.0, 0.0,
+// 					0.0, 1.0, 0.0, 0.0,
+// 					0.0, 0.0, 1.0, 0.0,
+// 					0.0, 0.0, 0.0, 1.0,
+// 				],
+// 			}
+// 		}
+// 
+// 		pub fn diagonal(&mut self, d: f32) -> Mat4x4 {
+// 			self.m = [
+// 				d, 0.0, 0.0, 0.0,
+// 				0.0, d, 0.0, 0.0,
+// 				0.0, 0.0, d, 0.0,
+// 				0.0, 0.0, 0.0, d,
+// 			];
+// 			*self
+// 		}
+// 
+// 		pub fn identity(&mut self) -> Mat4x4 {
+// 			self.m = [
+// 				1.0, 0.0, 0.0, 0.0,
+// 				0.0, 1.0, 0.0, 0.0,
+// 				0.0, 0.0, 1.0, 0.0,
+// 				0.0, 0.0, 0.0, 1.0,
+// 			];
+// 			*self
+// 		}
+// 
+// 		pub fn transpose(&mut self) -> Mat4x4 {
+// 			self.m = [
+// 				self.m[0], self.m[4], self.m[8], self.m[12],
+// 				self.m[1], self.m[5], self.m[9], self.m[13],
+// 				self.m[2], self.m[6], self.m[10], self.m[14],
+// 				self.m[3], self.m[7], self.m[11], self.m[15],
+// 			];
+// 			*self
+// 		}
+// 
+// 		pub fn translate(&mut self, t: Vec3) -> Mat4x4 {
+// 			let translated = Mat4x4 { m: [
+// 				1.0, 0.0, 0.0, t.x,
+// 				0.0, 1.0, 0.0, t.y,
+// 				0.0, 0.0, 1.0, t.z,
+// 				0.0, 0.0, 0.0, 1.0,
+// 			]} * *self;
+// 
+// 			self.m = translated.m;
+// 			*self
+// 		}
+// 
+// 		pub fn scale(&mut self, s: Vec3) -> Mat4x4 {
+// 			let scaled = Mat4x4 { m: [
+// 				s.x, 0.0, 0.0, 0.0,
+// 				0.0, s.y, 0.0, 0.0,
+// 				0.0, 0.0, s.z, 0.0,
+// 				0.0, 0.0, 0.0, 1.0,
+// 			]} * *self;
+// 
+// 			self.m = scaled.m;
+// 			*self
+// 		}
+// 
+// 		pub fn mirror(&mut self) -> Mat4x4 {
+// 			let mirror = Mat4x4 { m: [
+// 				-1.0, 0.0, 0.0, 0.0,
+// 				0.0, -1.0, 0.0, 0.0,
+// 				0.0, 0.0, -1.0, 0.0,
+// 				0.0, 0.0, 0.0, 1.0,
+// 			]} * *self;
+// 
+// 			self.m = mirror.m;
+// 			*self
+// 		}
+// 
+// 		// TODO: rotate() although 3D rotation is better with Quaternions
+// 
+// 		pub fn ortho(&mut self, left: f32, right: f32, bottom: f32, top: f32,
+// 			z_near: f32, z_far: f32) -> Mat4x4 {
+// 
+// 			let width = right - left;
+// 			let height = top - bottom;
+// 			let depth = z_far - z_near;
+// 
+// 			self.m = [
+// 				2.0/width, 0.0, 0.0, -(right+left)/width,
+// 				0.0, 2.0/height, 0.0, -(top+bottom)/height,
+// 				0.0, 0.0, -2.0/depth, -(z_far + z_near)/depth,
+// 				0.0, 0.0, 0.0, 0.0,
+// 			];
+// 			*self
+// 		}
+// 
+// 		pub fn perspective(&mut self, fovy: f32, aspect_ratio: f32,
+// 			z_near: f32, z_far: f32) -> Mat4x4 {
+// 
+// 			let rad: f32 = (fovy / 2.0) * PI / 180.0;
+// 			let y_scale: f32 = 1.0 / rad.tan();
+// 			let x_scale: f32 = y_scale / aspect_ratio;
+// 			let frustum_length: f32 = z_far - z_near;
+// 
+// 			self.m = [
+// 				x_scale, 0.0, 0.0, 0.0,
+// 				0.0, y_scale, 0.0, 0.0,
+// 				0.0, 0.0, (z_far + z_near) / frustum_length, (-2.0)*z_near*z_far/frustum_length,
+// 				0.0, 0.0, 1.0, 0.0,
+// 			];
+// 			*self
+// 		}
+// 
+// 		pub fn look_at(&mut self, eye: Vec3, look: Vec3, up: Vec3) -> Mat4x4 {
+// 			let l = look.normalized();
+// 			let r = look.cross(up);
+// 			let u = l.cross(r).normalized();
+// 
+// 			//	Calculation of camera matrix:
+// 			//			  Orientationmatrix		*	  Translationmatrix
+// 			//		|right.x  up.x  -look.x  0|			  |1 0 0 -eye.x	|
+// 			//		|right.y  up.y  -look.y  0|			  |0 1 0 -eye.x	|
+// 			//		|right.z  up.z  -look.z  0|			  |0 0 1 -eye.x	|
+// 			//		|0 		  0 	0 		 1|			  |0 0 0  1		|
+// 
+// 			self.m = [
+// 					r.x, u.x, -l.x, -r.x * eye.x - u.x *eye.y + l.x *eye.z,
+// 					r.y, u.y, -l.y, -r.y * eye.x - u.y *eye.y + l.y *eye.z,
+// 					r.z, u.z, -l.z, -r.z * eye.x - u.z *eye.y + l.z *eye.z,
+// 					0.0, 0.0, 0.0, 1.0,
+// 				];
+// 
+// 			*self
+// 		}
+// 
+// 		pub fn camera(&mut self, position: Vec3, orientation: Quaternion) -> Mat4x4 {
+// 			let r = orientation.right();
+// 			let u = orientation.up();
+// 			let f = orientation.forward();
+// 
+// 			self.m = [
+// 					r.x, r.y, r.z, -r.x * position.x - r.y * position.y - r.z * position.z,
+// 					u.x, u.y, u.z, -u.x * position.x - u.y * position.y - u.z * position.z,
+// 					f.x, f.y, f.z, -f.x * position.x - f.y * position.y - f.z * position.z,
+// 					0.0, 0.0, 0.0, 1.0,
+// 				];
+// 
+// 			*self
+// 		}
+// 	}
+// 
+// 	impl Add for Mat4x4 {
+// 		type Output = Mat4x4;
+// 
+// 		fn add(self, r: Mat4x4) -> Mat4x4 {
+// 			let mut res = Mat4x4::new();
+// 			res.m = [
+// 				self.m[0]+r.m[0], self.m[1]+r.m[1], self.m[2]+r.m[2], self.m[3]+r.m[3],
+// 				self.m[4]+r.m[4], self.m[5]+r.m[5], self.m[6]+r.m[6], self.m[7]+r.m[7],
+// 				self.m[8]+r.m[8], self.m[9]+r.m[9], self.m[10]+r.m[10], self.m[11]+r.m[11],
+// 				self.m[12]+r.m[12], self.m[13]+r.m[13], self.m[14]+r.m[14], self.m[15]+r.m[15],
+// 			];
+// 			res
+// 		}
+// 	}
+// 
+// 	impl Sub for Mat4x4 {
+// 		type Output = Mat4x4;
+// 
+// 		fn sub(self, r: Mat4x4) -> Mat4x4 {
+// 			let mut res = Mat4x4::new();
+// 			res.m = [
+// 				self.m[0]-r.m[0], self.m[1]-r.m[1], self.m[2]-r.m[2], self.m[3]-r.m[3],
+// 				self.m[4]-r.m[4], self.m[5]-r.m[5], self.m[6]-r.m[6], self.m[7]-r.m[7],
+// 				self.m[8]-r.m[8], self.m[9]-r.m[9], self.m[10]-r.m[10], self.m[11]-r.m[11],
+// 				self.m[12]-r.m[12], self.m[13]-r.m[13], self.m[14]-r.m[14], self.m[15]-r.m[15],
+// 			];
+// 			res
+// 		}
+// 	}
+// 
+// 	impl Mul<Mat4x4> for Mat4x4 {
+// 		type Output = Mat4x4;
+// 
+// 		fn mul(self, r: Mat4x4) -> Mat4x4 {
+// 			Mat4x4 { m: [
+// 				// Row 0
+// 				self.m[0]*r.m[0] + self.m[3]*r.m[12] + self.m[1]*r.m[4] + self.m[2]*r.m[8],
+// 				self.m[0]*r.m[1] + self.m[3]*r.m[13] + self.m[1]*r.m[5] + self.m[2]*r.m[9],
+// 				self.m[2]*r.m[10] + self.m[3]*r.m[14] + self.m[0]*r.m[2] + self.m[1]*r.m[6],
+// 				self.m[2]*r.m[11] + self.m[3]*r.m[15] + self.m[0]*r.m[3] + self.m[1]*r.m[7],
+// 
+// 				// Row 1
+// 				self.m[4]*r.m[0] + self.m[7]*r.m[12] + self.m[5]*r.m[4] + self.m[6]*r.m[8],
+// 				self.m[4]*r.m[1] + self.m[7]*r.m[13] + self.m[5]*r.m[5] + self.m[6]*r.m[9],
+// 				self.m[6]*r.m[10] + self.m[7]*r.m[14] + self.m[4]*r.m[2] + self.m[5]*r.m[6],
+// 				self.m[6]*r.m[11] + self.m[7]*r.m[15] + self.m[4]*r.m[3] + self.m[5]*r.m[7],
+// 
+// 				// Row 2
+// 				self.m[8]*r.m[0] + self.m[11]*r.m[12] + self.m[9]*r.m[4] + self.m[10]*r.m[8],
+// 				self.m[8]*r.m[1] + self.m[11]*r.m[13] + self.m[9]*r.m[5] + self.m[10]*r.m[9],
+// 				self.m[10]*r.m[10] + self.m[11]*r.m[14] + self.m[8]*r.m[2] + self.m[9]*r.m[6],
+// 				self.m[10]*r.m[11] + self.m[11]*r.m[15] + self.m[8]*r.m[3] + self.m[9]*r.m[7],
+// 
+// 				// Row 3
+// 				self.m[12]*r.m[0] + self.m[15]*r.m[12] + self.m[13]*r.m[4] + self.m[14]*r.m[8],
+// 				self.m[12]*r.m[1] + self.m[15]*r.m[13] + self.m[13]*r.m[5] + self.m[14]*r.m[9],
+// 				self.m[14]*r.m[10] + self.m[15]*r.m[14] + self.m[12]*r.m[2] + self.m[13]*r.m[6],
+// 				self.m[14]*r.m[11] + self.m[15]*r.m[15] + self.m[12]*r.m[3] + self.m[13]*r.m[7],
+// 			]}
+// 		}
+// 	}
+// 
+// 	// ____________________________________________________________________________________________
+// 	// Quaternion
+// 	#[derive(Copy, Clone)]
+// 	pub struct Quaternion {
+// 		pub x: f32,
+// 		pub y: f32,
+// 		pub z: f32,
+// 		pub w: f32,
+// 	}
+// 
+// 	impl Quaternion {
+// 		pub fn new() -> Quaternion {
+// 			Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0, }
+// 		}
+// 
+// 		pub fn set(&mut self, x: f32, y: f32, z: f32, w: f32) -> Quaternion {
+// 			self.x = x;
+// 			self.y = y;
+// 			self.z = z;
+// 			self.w = w;
+// 			*self
+// 		}
+// 
+// 		pub fn from_axis(&mut self, axis: Vec3, angle: f32) -> Quaternion {
+// 			let half_rad = angle * PI / 360.0;
+// 			let half_sin = half_rad.sin();
+// 			let half_cos = half_rad.cos();
+// 
+// 			self.x = axis.x * half_sin;
+// 			self.y = axis.y * half_sin;
+// 			self.z = axis.z * half_sin;
+// 			self.w = half_cos;
+// 
+// 			*self
+// 		}
+// 
+// 		pub fn from_euler(&mut self, angles: Vec3) -> Quaternion {
+// 			let rx = angles.x * PI / 360.0;
+// 			let ry = angles.y * PI / 360.0;
+// 			let rz = angles.z * PI / 360.0;
+// 
+// 			let sin_x = rx.sin();
+// 			let sin_y = ry.sin();
+// 			let sin_z = -rz.sin();
+// 
+// 			let cos_x = rx.cos();
+// 			let cos_y = ry.cos();
+// 			let cos_z = rz.cos();
+// 
+// 			let sin_x_sin_y = sin_x * sin_y;
+// 			let cos_x_cos_y = cos_x * cos_y;
+// 			let cos_x_sin_y = cos_x * sin_y;
+// 			let cos_y_sin_x = cos_y * sin_x;
+// 
+// 			self.x = cos_x_sin_y * sin_z + cos_y_sin_x * cos_z;
+// 			self.y = cos_x_sin_y * cos_z + cos_y_sin_x * sin_z;
+// 			self.z = cos_x_cos_y * sin_z - sin_x_sin_y * cos_z;
+// 			self.w = cos_x_cos_y * cos_z - sin_x_sin_y * sin_z;
+// 
+// 			self.normalize()
+// 		}
+// 
+// 
+// 		pub fn rotate(&mut self, axis: Vec3, angle: f32) -> Quaternion {
+// 			let half_rad = angle * PI / 360.0;
+// 			let half_sin = half_rad.sin();
+// 			let half_cos = half_rad.cos();
+// 
+// 			let axis_norm = axis.normalized();
+// 
+// 			let rx = -axis_norm.x * half_sin;
+// 			let ry = -axis_norm.y * half_sin;
+// 			let rz = -axis_norm.z * half_sin;
+// 			let rw = half_cos;
+// 
+// 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
+// 
+// 			self.set(
+// 				rw * x + rx * w + ry * z - rz * y,
+// 				rw * y + ry * w + rz * x - rx * z,
+// 				rw * z + rz * w + rx * y - ry * x,
+// 			 	rw * w - rx * x - ry * y - rz * z
+// 			);
+// 
+// 			self.normalize()
+// 		}
+// 
+// 		pub fn normalized(&self) -> Quaternion {
+// 			let inv_length = 1.0 / self.length();
+// 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
+// 			Quaternion {
+// 				x: x * inv_length,
+// 				y: y * inv_length,
+// 				z: z * inv_length,
+// 				w: w * inv_length,
+// 			}
+// 		}
+// 
+// 		pub fn normalize(&mut self) -> Quaternion {
+// 			let inv_length = 1.0 / self.length();
+// 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
+// 			self.set(
+// 					x * inv_length,
+// 					y * inv_length,
+// 					z * inv_length,
+// 					w * inv_length
+// 			);
+// 
+// 			*self
+// 		}
+// 
+// 		pub fn length(&self) -> f32 {
+// 			(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w).sqrt()
+// 		}
+// 
+// 		pub fn length_squared(&self) -> f32 {
+// 			self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w
+// 		}
+// 
+// 		pub fn dot(&self, q: Quaternion) -> f32  {
+// 			self.x * q.x + self.y * q.y + self.z * q.z + self.w * q.w
+// 		}
+// 
+// 		pub fn conjugate(&mut self) -> Quaternion {
+// 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
+// 			self.x = -x;
+// 			self.y = -y;
+// 			self.z = -z;
+// 			self.w = w;
+// 			*self
+// 		}
+// 
+// 		pub fn inverse(&mut self) -> Quaternion {
+// 			let inv_length_squared = 1.0 /
+// 				(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w);
+// 			let (x, y, z, w) = (self.x, self.y, self.z, self.w);
+// 			self.set(
+// 					-x * inv_length_squared,
+// 					-y * inv_length_squared,
+// 					-z * inv_length_squared,
+// 					w * inv_length_squared
+// 			);
+// 
+// 			*self
+// 		}
+// 
+// 		// TODO: Make this work
+// 		// pub fn slerp(q1: &Quaternion, q2: &Quaternion, amount: f32) -> Quaternion {
+// 		// 	let epsilon = 1000.0;
+// 		// 	let mut cos = q1.dot(q2);
+// 		// 	let mut res = Quaternion{ x: q2.x, y: q2.y, z: q2.z, w: q2.w };
+// 		//
+// 		// 	if cos < 0.0 {
+// 		// 		cos = -cos;
+// 		// 		res = Quaternion{ x: -(q2.x), y: -(q2.y), z: -(q2.z), w: -(q2.w) };
+// 		// 	}
+// 		//
+// 		// 	if cos.abs() >= (1.0 - epsilon) {
+// 		// 		return res;
+// 		// 		// return destination.subtr(q1).mult(amount).add(q1).normalize();
+// 		// 	}
+// 		//
+// 		// 	let sin = (1.0 - cos * cos).sqrt();
+// 		// 	let angle = sin.atan2(cos);
+// 		// 	let inv_sin =  1.0 / sin;
+// 		//
+// 		// 	let src_factor = ((1.0 - amount) * angle).sin() * inv_sin;
+// 		// 	let dest_factor = (amount * angle).sin() * inv_sin;
+// 		//
+// 		// 	res // q1.mult(sourceFactor).add(destination.mult(destinationFactor));
+// 		// }
+// 
+// 		// TODO: Make this work
+// 		// pub fn nlerp(q1: Quaternion, q2: Quaternion, amount: f32) -> Quaternion {
+// 		// 	let mut res = Quaternion {x: q2.x, y: q2.y, z: q2.z, w: q2.w };
+// 		//
+// 		// 	if q1.dot(&q2) < 0.0 {
+// 		// 		res = Quaternion {x: -(q2.x), y: -(q2.y), z: -(q2.z), w: -(q2.w)};
+// 		// 	}
+// 		//
+// 		// 	*((((res - q1) * amount) + q1).normalize())
+// 		// }
+// 
+// 		pub fn matrix(&self) -> Mat4x4 {
+// 			let xx2 = 2.0 * self.x * self.x;
+// 			let xy2 = 2.0 * self.x * self.y;
+// 			let xz2 = 2.0 * self.x * self.z;
+// 			let xw2 = 2.0 * self.x * self.w;
+// 			let yy2 = 2.0 * self.y * self.y;
+// 			let yz2 = 2.0 * self.y * self.z;
+// 			let yw2 = 2.0 * self.y * self.w;
+// 			let zz2 = 2.0 * self.z * self.z;
+// 			let zw2 = 2.0 * self.z * self.w;
+// 
+// 			Mat4x4 {
+// 				m: [
+// 					1.0 - (yy2 + zz2), xy2 + zw2, xz2 - yw2, 0.0,
+// 				 	xy2 - zw2, 1.0 - (xx2 + zz2), yz2 + xw2, 0.0,
+// 				 	xz2 + yw2, yz2 - xw2, 1.0 - (xx2 + yy2), 0.0,
+// 				 	0.0, 0.0, 0.0, 1.0
+// 				],
+// 			}
+// 
+// 		}
+// 
+// 		pub fn forward(&self) -> Vec3 {
+// 			Vec3 {
+// 				x: 2.0 * self.x * self.z + 2.0 * self.y * self.w,
+// 				y: 2.0 * self.y * self.x - 2.0 * self.x * self.w,
+// 				z: 1.0 - (2.0 * self.x * self.x + 2.0 * self.y * self.y),
+// 			}
+// 		}
+// 
+// 		pub fn backward(&self) -> Vec3 {
+// 			Vec3 {
+// 				x: -2.0 * self.x * self.z - 2.0 * self.y * self.w,
+// 				y: -2.0 * self.y * self.x + 2.0 * self.x * self.w,
+// 				z: -1.0 + (2.0 * self.x * self.x + 2.0 * self.y * self.y),
+// 			}
+// 		}
+// 
+// 		pub fn up(&self) -> Vec3 {
+// 			Vec3 {
+// 				x: 2.0 * self.x * self.y - 2.0 * self.z * self.w,
+// 				y: 1.0 - (2.0 * self.x * self.x + 2.0 * self.z * self.z),
+// 				z: 2.0 * self.y * self.z + 2.0 * self.x * self.w,
+// 			}
+// 		}
+// 
+// 		pub fn down(&self) -> Vec3 {
+// 			Vec3 {
+// 				x: -2.0 * self.x * self.y + 2.0 * self.z * self.w,
+// 				y: -1.0 + (2.0 * self.x * self.x + 2.0 * self.z * self.z),
+// 				z: -2.0 * self.y * self.z - 2.0 * self.x * self.w,
+// 			}
+// 		}
+// 
+// 		pub fn right(&self) -> Vec3 {
+// 			Vec3 {
+// 				x: -1.0 + (2.0 * self.y * self.y + 2.0 * self.z * self.z),
+// 				y: -2.0 * self.x * self.y - 2.0 * self.z * self.w,
+// 				z: -2.0 * self.x * self.z + 2.0 * self.y * self.w,
+// 			}
+// 		}
+// 
+// 		pub fn left(&self) -> Vec3 {
+// 			Vec3 {
+// 				x: 1.0 - (2.0 * self.y * self.y + 2.0 * self.z * self.z),
+// 				y: 2.0 * self.x * self.y + 2.0 * self.z * self.w,
+// 				z: 2.0 * self.x * self.z - 2.0 * self.y * self.w,
+// 			}
+// 		}
+// 
+// 	}
+// 
+// 	impl Add for Quaternion {
+// 		type Output = Quaternion;
+// 
+// 		fn add(self, r: Quaternion) -> Quaternion {
+// 			Quaternion {
+// 				x: self.x + r.x,
+// 				y: self.y + r.y,
+// 				z: self.z + r.z,
+// 				w: self.w + r.w,
+// 			}
+// 		}
+// 	}
+// 
+// 	impl Sub for Quaternion {
+// 		type Output = Quaternion;
+// 
+// 		fn sub(self, r: Quaternion) -> Quaternion {
+// 			Quaternion {
+// 				x: self.x - r.x,
+// 				y: self.y - r.y,
+// 				z: self.z - r.z,
+// 				w: self.w - r.w,
+// 			}
+// 		}
+// 	}
+// 
+// 	impl Mul<Quaternion> for Quaternion {
+// 		type Output = Quaternion;
+// 
+// 		fn mul(self, r: Quaternion) -> Quaternion {
+// 			Quaternion {
+// 				x: self.w * r.x + self.x * r.w + self.y * r.z - self.z * r.y,
+// 				y: self.w * r.y + self.y * r.w + self.z * r.x - self.x * r.z,
+// 				z: self.w * r.z + self.z * r.w + self.x * r.y - self.y * r.x,
+// 				w: self.w * r.w - self.x * r.x - self.y * r.y - self.z * r.z,
+// 			}
+// 		}
+// 	}
+// 
+// 	impl Mul<f32> for Quaternion {
+// 		type Output = Quaternion;
+// 
+// 		fn mul(self, r: f32) -> Quaternion {
+// 			Quaternion { x: self.x * r, y: self.y * r, z: self.z * r, w: self.w * r }
+// 		}
+// 	}
+// 
+// 	// ____________________________________________________________________________________________
+// 	// Vec3
+// 	#[derive(Copy, Clone)]
+// 	pub struct Vec3 {
+// 		pub x: f32,
+// 		pub y: f32,
+// 		pub z: f32,
+// 	}
+// 
+// 	impl Vec3 {
+// 		pub fn new() -> Vec3 {
+// 			Vec3 { x: 0.0, y: 0.0, z: 0.0 }
+// 		}
+// 
+// 		pub fn set(&mut self, x: f32, y: f32, z: f32) -> Vec3 {
+// 			self.x = x;
+// 			self.y = y;
+// 			self.z = z;
+// 			*self
+// 		}
+// 
+// 		fn dot(&self, r: Vec3) -> f32  {
+// 			self.x * r.x + self.y * r.y + self.z * r.z
+// 		}
+// 
+// 		fn cross(&self, r: Vec3) -> Vec3  {
+// 			Vec3 {
+// 				x: (self.y * r.z) - (self.z * r.y),
+// 				y: (self.z * r.x) - (self.x * r.z),
+// 				z: (self.x * r.y) - (self.y * r.x),
+// 			}
+// 		}
+// 
+// 		fn rotate(&mut self, axis: Vec3, angle: f32) -> Vec3 {
+// 			// Rodrigues' Rotation Formula
+// 			// v(rot) = v cos(t) + (axis X v) sin(t) + axis ( axis . v ) (1 - cos(t))
+// 			// v(rot) = a + b + c
+// 
+// 			let t = angle * PI / 180.0;
+// 			let sin_t = t.sin();
+// 			let cos_t = t.cos();
+// 
+// 			// a = v cos(t)
+// 			let ax = self.x * cos_t;
+// 			let ay = self.y * cos_t;
+// 			let az = self.z * cos_t;
+// 
+// 			// b = (axis X v) sin(t)
+// 			let bx = ((axis.y * self.z) - (axis.z * self.y)) * sin_t;
+// 			let by = ((axis.z * self.x) - (axis.x * self.z)) * sin_t;
+// 			let bz = ((axis.x * self.y) - (axis.y * self.x)) * sin_t;
+// 
+// 			// c = axis ( axis . v ) (1 - cos(t))
+// 			let scale = self.dot(axis) * (1.0 - cos_t);
+// 			let cx = axis.x * scale;
+// 			let cy = axis.y * scale;
+// 			let cz = axis.z * scale;
+// 
+// 			// v(rot) = a + b + c
+// 			self.x = ax + bx + cx;
+// 			self.x = ay + by + cy;
+// 			self.x = az + bz + cz;
+// 			*self
+// 		}
+// 
+// 		pub fn normalized(&self) -> Vec3 {
+// 			let inv_length = 1.0 / self.length();
+// 			let (x, y, z) = (self.x, self.y, self.z);
+// 			Vec3 {
+// 				x: x * inv_length,
+// 				y: y * inv_length,
+// 				z: z * inv_length,
+// 			}
+// 		}
+// 
+// 		pub fn normalize(&mut self) -> Vec3 {
+// 			let inv_length = 1.0 / self.length();
+// 			let (x, y, z) = (self.x, self.y, self.z);
+// 			self.set(
+// 					x * inv_length,
+// 					y * inv_length,
+// 					z * inv_length,
+// 			);
+// 
+// 			*self
+// 		}
+// 
+// 		pub fn length(&self) -> f32 {
+// 			(self.x * self.x + self.y * self.y + self.z * self.z).sqrt()
+// 		}
+// 
+// 		pub fn length_squared(&self) -> f32 {
+// 			self.x * self.x + self.y * self.y + self.z * self.z
+// 		}
+// 
+// 		pub fn distance(v1: Vec3, v2: Vec3) -> f32 {
+// 			(v1 - v2).length()
+// 		}
+// 
+// 		pub fn distance_squared(v1: Vec3, v2: Vec3) -> f32 {
+// 			(v1 - v2).length_squared()
+// 		}
+// 
+// 		pub fn lerp(v1: Vec3, v2: Vec3, amount: f32) -> Vec3 {
+// 			let diff = 1.0 - amount;
+// 			Vec3 {
+// 				x: diff * v1.x + amount * v2.x,
+// 				y: diff * v1.y + amount * v2.y,
+// 				z: diff * v1.z + amount * v2.z,
+// 			}
+// 		}
+// 
+// 		// TODO: Swizzling and create Vec2 struct
+// 	}
+// 
+// 	impl Add for Vec3 {
+// 		type Output = Vec3;
+// 
+// 		fn add(self, r: Vec3) -> Vec3 {
+// 			Vec3 { x: self.x + r.x, y: self.y + r.y, z: self.z + r.z }
+// 		}
+// 	}
+// 
+// 	impl Sub for Vec3 {
+// 		type Output = Vec3;
+// 
+// 		fn sub(self, r: Vec3) -> Vec3 {
+// 			Vec3 { x: self.x - r.x, y: self.y - r.y, z: self.z - r.z }
+// 		}
+// 	}
+// 
+// 	impl Mul<f32> for Vec3 {
+// 		type Output = Vec3;
+// 
+// 		fn mul(self, r: f32) -> Vec3 {
+// 			Vec3 {  x: self.x * r, y: self.y * r, z: self.z * r }
+// 		}
+// 	}
+// 
+// 	impl Div<f32> for Vec3 {
+// 		type Output = Vec3;
+// 
+// 		fn div(self, r: f32) -> Vec3 {
+// 			let inv = if r != 0.0 { 1.0 / r } else { f32::MAX };
+// 			Vec3 { x: self.x * inv, y: self.y * inv, z: self.z * inv }
+// 		}
+// 	}
+// 
+// 	impl Neg for Vec3 {
+// 		type Output = Vec3;
+// 
+// 		fn neg(self) -> Vec3 {
+// 			Vec3 { x: -self.x, y: -self.y, z: -self.z }
+// 		}
+// 	}
+// 
+// 	// ____________________________________________________________________________________________
+// 	// Vec4
+// 	pub struct Vec4 {
+// 		pub x: f32,
+// 		pub y: f32,
+// 		pub z: f32,
+// 		pub w: f32,
+// 	}
+// 
+// 	impl Vec4 {
+// 		pub fn new() -> Vec4 {
+// 			Vec4 { x: 0.0, y: 0.0, z: 0.0, w: 0.0 }
+// 		}
+// 	}
+// }
 
 // TODO: put Graphics stuff in module graphics
 
@@ -1322,6 +1324,7 @@ static INDICES: [GLuint; 6] = [
 ];
 
 fn main() {
+	let vd = framework::math::TestVec{x: 0.0, y: 0.0, z: 0.0};
 	// Initialize SDL stuff (later in WindowsSystem)
 
 	let sdl_context = sdl2::init().unwrap();
