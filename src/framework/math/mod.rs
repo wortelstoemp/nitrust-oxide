@@ -1,6 +1,3 @@
-mod testvec;
-pub use self::testvec::TestVec;
-
 mod mat4x4;
 pub use self::mat4x4::Mat4x4;
 
