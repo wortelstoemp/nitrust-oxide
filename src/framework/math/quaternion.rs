@@ -184,16 +184,16 @@ impl Quaternion {
 		// 	*((((res - q1) * amount) + q1).normalize())
 		// }
 
-	pub fn matrix(&self) -> Mat4x4 {
-		let xx2 = 2.0 * self.x * self.x;
-		let xy2 = 2.0 * self.x * self.y;
-		let xz2 = 2.0 * self.x * self.z;
-		let xw2 = 2.0 * self.x * self.w;
-		let yy2 = 2.0 * self.y * self.y;
-		let yz2 = 2.0 * self.y * self.z;
-		let yw2 = 2.0 * self.y * self.w;
-		let zz2 = 2.0 * self.z * self.z;
-		let zw2 = 2.0 * self.z * self.w;
+	pub fn matrix(q: Quaternion) -> Mat4x4 {
+		let xx2 = 2.0 * q.x * q.x;
+		let xy2 = 2.0 * q.x * q.y;
+		let xz2 = 2.0 * q.x * q.z;
+		let xw2 = 2.0 * q.x * q.w;
+		let yy2 = 2.0 * q.y * q.y;
+		let yz2 = 2.0 * q.y * q.z;
+		let yw2 = 2.0 * q.y * q.w;
+		let zz2 = 2.0 * q.z * q.z;
+		let zw2 = 2.0 * q.z * q.w;
 
 		Mat4x4 {
 			m: [

@@ -107,33 +107,34 @@ mod core {
 		}
 
 		pub fn model(&self) -> Mat4x4 {
-			Mat4x4::new().scale(self.scale) *
-			self.orientation.matrix() *
-			Mat4x4::new().translate(self.position)
+			Mat4x4::scale(self.scale) *
+			Quaternion::matrix(self.orientation) *
+			Mat4x4::translation(self.position)
 		}
 
-		pub fn mvp(&self, camera: &CameraComponent) -> Mat4x4 {
+		pub fn mvp(&self, camera: CameraComponent) -> Mat4x4 {
 			camera.view_projection * self.model()
 		}
 	}
-
+	
 	pub struct CameraComponent {
 		view_projection: Mat4x4,
 	}
 
 	impl CameraComponent {
-		fn new_ortho(width: u32, height: u32, z_near: f32, z_far: f32) -> CameraComponent {
+		fn new_ortho(transform: Transform,
+		width: u32, height: u32, z_near: f32, z_far: f32) -> CameraComponent {
 			CameraComponent {
 				view_projection:
-					Mat4x4::new().ortho(0.0, width as f32, 0.0, height as f32, z_near, z_far),
+					Mat4x4::ortho(0.0, width as f32, 0.0, height as f32, z_near, z_far),
 			}
 		}
 
-		fn new_perspective(fovy: f32, width: u32, height: u32,
-			z_near: f32, z_far: f32) -> CameraComponent {
+		fn new_perspective(transform: Transform, 
+		fovy: f32, width: u32, height: u32, z_near: f32, z_far: f32) -> CameraComponent {
 			CameraComponent {
 				view_projection:
-					Mat4x4::new().perspective(fovy, width as f32 / height as f32, z_near, z_far),
+					Mat4x4::perspective(fovy, width as f32 / height as f32, z_near, z_far),
 			}
 		}
 	}
@@ -181,9 +182,10 @@ impl<'a> Shader for BasicShader<'a> {
 
 	fn update_uniforms(&self, dt: f32) {
 		// Unique implementation
-		let mut transform = Mat4x4::new().scale(Vec3{ x: 0.5, y: 0.5, z: 0.5 });
-		let mut orientation = Quaternion::new().rotate(Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0);
-		transform = (orientation.matrix() * transform).translate(Vec3{ x: 0.5, y: -0.5, z: 0.0 });
+		let scale = Mat4x4::scale(Vec3{ x: 0.5, y: 0.5, z: 0.5 });
+		let rotation = Quaternion::matrix(Quaternion::new().rotate(Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0));
+		let translation = Mat4x4::translation(Vec3{ x: 0.5, y: -0.5, z: 0.0 });
+		let transform = translation * rotation * scale;
 		self.shader.set_mat4x4(&self.uniform_transform, &transform);
 	}
 }
