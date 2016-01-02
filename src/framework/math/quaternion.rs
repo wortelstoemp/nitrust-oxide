@@ -32,7 +32,7 @@ impl Quaternion {
             y: -axis.y * half_sin,
             z: -axis.z * half_sin,
             w: half_cos,
-        }
+        }.normalized()
 	}
 
 	pub fn from_euler(angles: &Vec3) -> Quaternion {
@@ -40,8 +40,8 @@ impl Quaternion {
 		let ry = angles.y * PI / 360.0;
 		let rz = angles.z * PI / 360.0;
 
-		let sin_x = rx.sin();
-		let sin_y = ry.sin();
+		let sin_x = -rx.sin();
+		let sin_y = -ry.sin();
 		let sin_z = -rz.sin();
 
 		let cos_x = rx.cos();

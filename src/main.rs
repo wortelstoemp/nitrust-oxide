@@ -72,7 +72,7 @@ impl<'a> Shader for BasicShader<'a> {
 
 	fn update_uniforms(&self, transform: &Transform, camera: &Camera, dt: f32) {
 		// Unique implementation
-		self.shader.set_mat4x4(&(self.uniform_transform), &transform.model()); // TODO:  &transform.mvp(camera)
+		self.shader.set_mat4x4(&(self.uniform_transform), &transform.mvp(&camera)); // TODO:  &transform.mvp(&camera)
 	}
 }
 
@@ -287,7 +287,7 @@ fn main() {
 		//gl::PolygonMode(gl::FRONT_AND_BACK, gl::FILL);
 
 		// Back Face Culling
-		gl::Enable(gl::CULL_FACE);
+		//gl::Enable(gl::CULL_FACE);
 		gl::CullFace(gl::BACK);
 		gl::FrontFace(gl::CCW);
 
@@ -300,18 +300,18 @@ fn main() {
 	}
 
     let transform = Transform { 
-            position: Vec3{ x: 0.5, y: -0.5, z: 0.0 },
-            scale: Vec3{ x: 0.5, y: 0.5, z: 0.5 },
-            orientation: Quaternion::from_euler(&Vec3{x: 0.0, y: 0.0, z: 45.0}),
+            position: Vec3{ x: 0.0, y: 0.0, z: 0.0 },
+            scale: Vec3{ x: 1.0, y: 1.0, z: 1.0 },
+            orientation: Quaternion::from_euler(&Vec3{x: 180.0, y: 0.0, z: 0.0}),
     };
     
     let camera_transform = Transform { 
-            position: Vec3{ x: 0.0, y: 0.0, z: 0.0 },
+            position: Vec3{ x: 0.0, y: 0.0, z: 3.0 },
             scale: Vec3{ x: 1.0, y: 1.0, z: 1.0 },
             orientation: Quaternion::from_axis(&Vec3{ x: 0.0, y: 1.0, z: 0.0 }, 180.0),
     };
     
-    let camera = Camera::new_ortho(&camera_transform, 800, 600, 0.1, 100.0);
+    let camera = Camera::new_perspective(&camera_transform, 45.0, 800, 600, 0.1, 100.0);
     
 	let mut texture = Texture::new();
 	texture.load("./assets/textures/board_alpha.dds");
