@@ -1,7 +1,7 @@
 use framework::collision::{AABB, Sphere};
 use framework::math::Vec3;
 
-pub fn intersects_AABB(a: AABB, b: AABB) -> bool {
+pub fn intersects_AABB(a: &AABB, b: &AABB) -> bool {
 	if (a.center.x - b.center.x).abs() > (a.size.x + b.size.x) {
 		return false;
 	}
@@ -17,10 +17,10 @@ pub fn intersects_AABB(a: AABB, b: AABB) -> bool {
 	true
 }
 
-pub fn intersects_Sphere(a: Sphere, b: Sphere) -> bool {
+pub fn intersects_Sphere(a: &Sphere, b: &Sphere) -> bool {
 	let radius_sum = a.radius + b.radius;
 	let radius_sum_squared = radius_sum * radius_sum;
-	let center_distance_squared = Vec3::distance_squared(b.center, a.center);
+	let center_distance_squared = Vec3::distance_squared(&b.center, &a.center);
 	
 	center_distance_squared <= radius_sum_squared
 }

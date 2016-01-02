@@ -3,7 +3,6 @@ use std::ops::*;
 
 use framework::math::{Quaternion, Vec3};
 
-#[derive(Copy, Clone)]
 pub struct Mat4x4 {
 	pub m: [f32; 16],
 }
@@ -36,7 +35,7 @@ impl Mat4x4 {
 		]}
 	}
 
-	pub fn transpose(m: Mat4x4) -> Mat4x4 {
+	pub fn transpose(m: &Mat4x4) -> Mat4x4 {
 		Mat4x4 { m: [
 			m.m[0], m.m[4], m.m[8], m.m[12],
 			m.m[1], m.m[5], m.m[9], m.m[13],
@@ -45,7 +44,7 @@ impl Mat4x4 {
 		]}
 	}
 
-	pub fn translation(t: Vec3) -> Mat4x4 {
+	pub fn translation(t: &Vec3) -> Mat4x4 {
 		Mat4x4 { m: [
 			1.0, 0.0, 0.0, t.x,
 			0.0, 1.0, 0.0, t.y,
@@ -54,7 +53,7 @@ impl Mat4x4 {
 		]}
 	}
 
-	pub fn scale(s: Vec3) -> Mat4x4 {
+	pub fn scale(s: &Vec3) -> Mat4x4 {
 		Mat4x4 { m: [
 			s.x, 0.0, 0.0, 0.0,
 			0.0, s.y, 0.0, 0.0,
@@ -103,10 +102,10 @@ impl Mat4x4 {
 		]}
 	}
 
-	pub fn look_at(eye: Vec3, look: Vec3, up: Vec3) -> Mat4x4 {
+	pub fn look_at(eye: &Vec3, look: &Vec3, up: &Vec3) -> Mat4x4 {
 		let l = look.normalized();
-		let r = Vec3::cross(look, up);
-		let u = Vec3::cross(l, r).normalized();
+		let r = Vec3::cross(&look, &up);
+		let u = Vec3::cross(&l, &r).normalized();
 
 		//	Calculation of camera matrix:
 		//		Orientationmatrix		*	  Translationmatrix
@@ -123,7 +122,7 @@ impl Mat4x4 {
 		]}
 	}
 
-	pub fn camera(position: Vec3, orientation: Quaternion) -> Mat4x4 {
+	pub fn camera(position: &Vec3, orientation: &Quaternion) -> Mat4x4 {
 		let r = orientation.right();
 		let u = orientation.up();
 		let f = orientation.forward();
@@ -150,6 +149,19 @@ impl Add for Mat4x4 {
 	}
 }
 
+impl<'a> Add for &'a Mat4x4 {
+	type Output = Mat4x4;
+
+	fn add(self, r: &Mat4x4) -> Mat4x4 {
+		Mat4x4 { m: [
+			self.m[0]+r.m[0], self.m[1]+r.m[1], self.m[2]+r.m[2], self.m[3]+r.m[3],
+			self.m[4]+r.m[4], self.m[5]+r.m[5], self.m[6]+r.m[6], self.m[7]+r.m[7],
+			self.m[8]+r.m[8], self.m[9]+r.m[9], self.m[10]+r.m[10], self.m[11]+r.m[11],
+			self.m[12]+r.m[12], self.m[13]+r.m[13], self.m[14]+r.m[14], self.m[15]+r.m[15],
+		]}
+	}
+}
+
 impl Sub for Mat4x4 {
 	type Output = Mat4x4;
 
@@ -163,10 +175,55 @@ impl Sub for Mat4x4 {
 	}
 }
 
+impl<'a> Sub for &'a Mat4x4 {
+	type Output = Mat4x4;
+
+	fn sub(self, r: &Mat4x4) -> Mat4x4 {
+		Mat4x4 { m: [
+			self.m[0]-r.m[0], self.m[1]-r.m[1], self.m[2]-r.m[2], self.m[3]-r.m[3],
+			self.m[4]-r.m[4], self.m[5]-r.m[5], self.m[6]-r.m[6], self.m[7]-r.m[7],
+			self.m[8]-r.m[8], self.m[9]-r.m[9], self.m[10]-r.m[10], self.m[11]-r.m[11],
+			self.m[12]-r.m[12], self.m[13]-r.m[13], self.m[14]-r.m[14], self.m[15]-r.m[15],
+		]}
+	}
+}
+
 impl Mul<Mat4x4> for Mat4x4 {
 	type Output = Mat4x4;
 
 	fn mul(self, r: Mat4x4) -> Mat4x4 {
+		Mat4x4 { m: [
+			// Row 0
+			self.m[0]*r.m[0] + self.m[3]*r.m[12] + self.m[1]*r.m[4] + self.m[2]*r.m[8],
+			self.m[0]*r.m[1] + self.m[3]*r.m[13] + self.m[1]*r.m[5] + self.m[2]*r.m[9],
+			self.m[2]*r.m[10] + self.m[3]*r.m[14] + self.m[0]*r.m[2] + self.m[1]*r.m[6],
+			self.m[2]*r.m[11] + self.m[3]*r.m[15] + self.m[0]*r.m[3] + self.m[1]*r.m[7],
+
+			// Row 1
+			self.m[4]*r.m[0] + self.m[7]*r.m[12] + self.m[5]*r.m[4] + self.m[6]*r.m[8],
+			self.m[4]*r.m[1] + self.m[7]*r.m[13] + self.m[5]*r.m[5] + self.m[6]*r.m[9],
+			self.m[6]*r.m[10] + self.m[7]*r.m[14] + self.m[4]*r.m[2] + self.m[5]*r.m[6],
+			self.m[6]*r.m[11] + self.m[7]*r.m[15] + self.m[4]*r.m[3] + self.m[5]*r.m[7],
+
+			// Row 2
+			self.m[8]*r.m[0] + self.m[11]*r.m[12] + self.m[9]*r.m[4] + self.m[10]*r.m[8],
+			self.m[8]*r.m[1] + self.m[11]*r.m[13] + self.m[9]*r.m[5] + self.m[10]*r.m[9],
+			self.m[10]*r.m[10] + self.m[11]*r.m[14] + self.m[8]*r.m[2] + self.m[9]*r.m[6],
+			self.m[10]*r.m[11] + self.m[11]*r.m[15] + self.m[8]*r.m[3] + self.m[9]*r.m[7],
+			
+			// Row 3
+			self.m[12]*r.m[0] + self.m[15]*r.m[12] + self.m[13]*r.m[4] + self.m[14]*r.m[8],
+			self.m[12]*r.m[1] + self.m[15]*r.m[13] + self.m[13]*r.m[5] + self.m[14]*r.m[9],
+			self.m[14]*r.m[10] + self.m[15]*r.m[14] + self.m[12]*r.m[2] + self.m[13]*r.m[6],
+			self.m[14]*r.m[11] + self.m[15]*r.m[15] + self.m[12]*r.m[3] + self.m[13]*r.m[7],
+		]}
+	}
+}
+    
+impl<'a> Mul<&'a Mat4x4> for &'a Mat4x4 {
+	type Output = Mat4x4;
+
+	fn mul(self, r: &Mat4x4) -> Mat4x4 {
 		Mat4x4 { m: [
 			// Row 0
 			self.m[0]*r.m[0] + self.m[3]*r.m[12] + self.m[1]*r.m[4] + self.m[2]*r.m[8],

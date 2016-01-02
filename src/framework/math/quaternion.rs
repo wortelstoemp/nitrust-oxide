@@ -3,7 +3,6 @@ use std::ops::*;
 
 use framework::math::{Mat4x4, Vec3};
 
-#[derive(Copy, Clone)]
 pub struct Quaternion {
 	pub x: f32,
 	pub y: f32,
@@ -16,28 +15,27 @@ impl Quaternion {
 		Quaternion { x: 0.0, y: 0.0, z: 0.0, w: 1.0, }
 	}
 
-	pub fn set(&mut self, x: f32, y: f32, z: f32, w: f32) -> Quaternion {
+	pub fn set(&mut self, x: f32, y: f32, z: f32, w: f32) {
 		self.x = x;
 		self.y = y;
 		self.z = z;
 		self.w = w;
-		*self
 	}
 
-	pub fn from_axis(&mut self, axis: Vec3, angle: f32) -> Quaternion {
+	pub fn from_axis(axis: &Vec3, angle: f32) -> Quaternion {
 		let half_rad = angle * PI / 360.0;
 		let half_sin = half_rad.sin();
 		let half_cos = half_rad.cos();
-
-		self.x = axis.x * half_sin;
-		self.y = axis.y * half_sin;
-		self.z = axis.z * half_sin;
-		self.w = half_cos;
-
-		*self
+        
+        Quaternion {
+            x: -axis.x * half_sin,
+            y: -axis.y * half_sin,
+            z: -axis.z * half_sin,
+            w: half_cos,
+        }
 	}
 
-	pub fn from_euler(&mut self, angles: Vec3) -> Quaternion {
+	pub fn from_euler(angles: &Vec3) -> Quaternion {
 		let rx = angles.x * PI / 360.0;
 		let ry = angles.y * PI / 360.0;
 		let rz = angles.z * PI / 360.0;
@@ -54,17 +52,17 @@ impl Quaternion {
 		let cos_x_cos_y = cos_x * cos_y;
 		let cos_x_sin_y = cos_x * sin_y;
 		let cos_y_sin_x = cos_y * sin_x;
-
-		self.x = cos_x_sin_y * sin_z + cos_y_sin_x * cos_z;
-		self.y = cos_x_sin_y * cos_z + cos_y_sin_x * sin_z;
-		self.z = cos_x_cos_y * sin_z - sin_x_sin_y * cos_z;
-		self.w = cos_x_cos_y * cos_z - sin_x_sin_y * sin_z;
-
-		self.normalize()
+        
+        Quaternion {
+		  x: cos_x_sin_y * sin_z + cos_y_sin_x * cos_z,
+		  y: cos_x_sin_y * cos_z + cos_y_sin_x * sin_z,
+		  z: cos_x_cos_y * sin_z - sin_x_sin_y * cos_z,
+		  w: cos_x_cos_y * cos_z - sin_x_sin_y * sin_z, 
+        }.normalized()
 	}
 
 
-	pub fn rotate(&mut self, axis: &Vec3, angle: f32) -> Quaternion {
+	pub fn rotate(&self, axis: &Vec3, angle: f32) -> Quaternion {
 		let half_rad = angle * PI / 360.0;
 		let half_sin = half_rad.sin();
 		let half_cos = half_rad.cos();
@@ -76,39 +74,23 @@ impl Quaternion {
 		let rz = -axis_norm.z * half_sin;
 		let rw = half_cos;
 
-		let (x, y, z, w) = (self.x, self.y, self.z, self.w);
-
-		self.set(
-			rw * x + rx * w + ry * z - rz * y,
-			rw * y + ry * w + rz * x - rx * z,
-			rw * z + rz * w + rx * y - ry * x,
-			rw * w - rx * x - ry * y - rz * z
-		);
-
-		self.normalize()
+		 Quaternion {
+			x: rw * self.x + rx * self.w + ry * self.z - rz * self.y,
+			y: rw * self.y + ry * self.w + rz * self.x - rx * self.z,
+			z: rw * self.z + rz * self.w + rx * self.y - ry * self.x,
+			w: rw * self.w - rx * self.x - ry * self.y - rz * self.z,
+         }.normalized()
 	}
 
 	pub fn normalized(&self) -> Quaternion {
 		let inv_length = 1.0 / self.length();
-		let (x, y, z, w) = (self.x, self.y, self.z, self.w);
-		Quaternion {
-			x: x * inv_length,
-			y: y * inv_length,
-			z: z * inv_length,
-			w: w * inv_length,
+        
+        Quaternion {
+			x: self.x * inv_length,
+			y: self.y * inv_length,
+			z: self.z * inv_length,
+			w: self.w * inv_length,
 		}
-	}
-
-	pub fn normalize(&mut self) -> Quaternion {
-		let inv_length = 1.0 / self.length();
-		let (x, y, z, w) = (self.x, self.y, self.z, self.w);
-		self.set(
-			x * inv_length,
-			y * inv_length,
-			z * inv_length,
-			w * inv_length
-		);
-			*self
 	}
 
 	pub fn length(&self) -> f32 {
@@ -123,27 +105,19 @@ impl Quaternion {
 		self.x * q.x + self.y * q.y + self.z * q.z + self.w * q.w
 	}
 
-	pub fn conjugate(&mut self) -> Quaternion {
-		let (x, y, z, w) = (self.x, self.y, self.z, self.w);
-		self.x = -x;
-		self.y = -y;
-		self.z = -z;
-		self.w = w;
-		*self
+	pub fn conjugate(&self) -> Quaternion {
+        Quaternion{x: -self.x, y: -self.y, z: -self.z, w: self.w}
 	}
 
-	pub fn inverse(&mut self) -> Quaternion {
-		let inv_length_squared = 1.0 /
-			(self.x * self.x + self.y * self.y + self.z * self.z + self.w * self.w);
-		let (x, y, z, w) = (self.x, self.y, self.z, self.w);
-		self.set(
-			-x * inv_length_squared,
-			-y * inv_length_squared,
-			-z * inv_length_squared,
-			w * inv_length_squared
-		);
-
-		*self
+	pub fn inverse(&self) -> Quaternion {
+		let inv_length_squared = 1.0 / self.length_squared();
+		
+        Quaternion{
+		  x: -self.x * inv_length_squared,
+		  y: -self.y * inv_length_squared,
+		  z: -self.z * inv_length_squared,
+		  w: self.w * inv_length_squared,
+        }
 	}
 
 		// TODO: Make this work
@@ -183,7 +157,7 @@ impl Quaternion {
 		// 	*((((res - q1) * amount) + q1).normalize())
 		// }
 
-	pub fn matrix(q: Quaternion) -> Mat4x4 {
+	pub fn matrix(q: &Quaternion) -> Mat4x4 {
 		let xx2 = 2.0 * q.x * q.x;
 		let xy2 = 2.0 * q.x * q.y;
 		let xz2 = 2.0 * q.x * q.z;
@@ -267,6 +241,19 @@ impl Add for Quaternion {
 	}
 }
 
+impl<'a> Add for &'a Quaternion {
+	type Output = Quaternion;
+
+	fn add(self, r: &Quaternion) -> Quaternion {
+		Quaternion {
+			x: self.x + r.x,
+			y: self.y + r.y,
+			z: self.z + r.z,
+			w: self.w + r.w,
+		}
+	}
+}
+
 impl Sub for Quaternion {
 	type Output = Quaternion;
 
@@ -280,7 +267,20 @@ impl Sub for Quaternion {
 	}
 }
 
-impl Mul<Quaternion> for Quaternion {
+impl<'a> Sub for &'a Quaternion {
+	type Output = Quaternion;
+
+	fn sub(self, r: &Quaternion) -> Quaternion {
+		Quaternion {
+			x: self.x - r.x,
+			y: self.y - r.y,
+			z: self.z - r.z,
+			w: self.w - r.w,
+		}
+	}
+}
+
+impl Mul for Quaternion {
 	type Output = Quaternion;
 
 	fn mul(self, r: Quaternion) -> Quaternion {
@@ -293,7 +293,28 @@ impl Mul<Quaternion> for Quaternion {
 	}
 }
 
+impl<'a> Mul for &'a Quaternion {
+	type Output = Quaternion;
+
+	fn mul(self, r: &Quaternion) -> Quaternion {
+		Quaternion {
+			x: self.w * r.x + self.x * r.w + self.y * r.z - self.z * r.y,
+			y: self.w * r.y + self.y * r.w + self.z * r.x - self.x * r.z,
+			z: self.w * r.z + self.z * r.w + self.x * r.y - self.y * r.x,
+			w: self.w * r.w - self.x * r.x - self.y * r.y - self.z * r.z,
+		}
+	}
+}
+
 impl Mul<f32> for Quaternion {
+	type Output = Quaternion;
+
+	fn mul(self, r: f32) -> Quaternion {
+		Quaternion { x: self.x * r, y: self.y * r, z: self.z * r, w: self.w * r }
+	}
+}
+
+impl<'a> Mul<f32> for &'a Quaternion {
 	type Output = Quaternion;
 
 	fn mul(self, r: f32) -> Quaternion {

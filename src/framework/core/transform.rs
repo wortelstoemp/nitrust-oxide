@@ -9,7 +9,7 @@ pub struct Transform {
 
 impl Transform {
 	pub fn move_towards(&mut self, direction: &Vec3, amount: f32) {
-	   self.position = self.position + direction.normalized() * amount;
+	   self.position = &self.position + &(&direction.normalized() * amount);
 	}
 
 	pub fn rotate(&mut self, axis: &Vec3, angle: f32) {
@@ -17,12 +17,12 @@ impl Transform {
 	}
 
 	pub fn model(&self) -> Mat4x4 {
-	   Mat4x4::translation(self.position) *
-	   Quaternion::matrix(self.orientation) *
-	   Mat4x4::scale(self.scale)
+	   &Mat4x4::translation(&self.position) *
+	   &Quaternion::matrix(&self.orientation) *
+	   Mat4x4::scale(&self.scale)
 	}
 
 	pub fn mvp(&self, camera: &Camera) -> Mat4x4 {
-       camera.view_projection * self.model()
+       &camera.view_projection * &self.model()
 	}
 }

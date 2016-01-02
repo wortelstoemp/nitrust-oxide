@@ -300,15 +300,15 @@ fn main() {
 	}
 
     let transform = Transform { 
-            position: Vec3{ x: 0.0, y: 0.0, z: 0.0 },
+            position: Vec3{ x: 0.5, y: -0.5, z: 0.0 },
             scale: Vec3{ x: 0.5, y: 0.5, z: 0.5 },
-            orientation: Quaternion::new().rotate(&Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0)
+            orientation: Quaternion::from_euler(&Vec3{x: 0.0, y: 0.0, z: 45.0}),
     };
     
     let camera_transform = Transform { 
             position: Vec3{ x: 0.0, y: 0.0, z: 0.0 },
             scale: Vec3{ x: 1.0, y: 1.0, z: 1.0 },
-            orientation: Quaternion::new().rotate(&Vec3{ x: 0.0, y: 1.0, z: 0.0 }, 180.0)
+            orientation: Quaternion::from_axis(&Vec3{ x: 0.0, y: 1.0, z: 0.0 }, 180.0),
     };
     
     let camera = Camera::new_ortho(&camera_transform, 800, 600, 0.1, 100.0);
