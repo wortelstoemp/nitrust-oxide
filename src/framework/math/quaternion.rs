@@ -1,8 +1,7 @@
 use std::f32::consts::PI;
 use std::ops::*;
 
-use framework::math::Mat4x4;
-use framework::math::Vec3;
+use framework::math::{Mat4x4, Vec3};
 
 #[derive(Copy, Clone)]
 pub struct Quaternion {
@@ -65,7 +64,7 @@ impl Quaternion {
 	}
 
 
-	pub fn rotate(&mut self, axis: Vec3, angle: f32) -> Quaternion {
+	pub fn rotate(&mut self, axis: &Vec3, angle: f32) -> Quaternion {
 		let half_rad = angle * PI / 360.0;
 		let half_sin = half_rad.sin();
 		let half_cos = half_rad.cos();

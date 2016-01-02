@@ -21,15 +21,15 @@ impl Vec3 {
 		*self
 	}
 
-	pub fn dot(&self, r: Vec3) -> f32  {
-		self.x * r.x + self.y * r.y + self.z * r.z
+	pub fn dot(l: Vec3, r: Vec3) -> f32  {
+		l.x * r.x + l.y * r.y + l.z * r.z
 	}
 
-	pub fn cross(&self, r: Vec3) -> Vec3  {
+	pub fn cross(l: Vec3, r: Vec3) -> Vec3  {
 		Vec3 {
-			x: (self.y * r.z) - (self.z * r.y),
-			y: (self.z * r.x) - (self.x * r.z),
-			z: (self.x * r.y) - (self.y * r.x),
+			x: (l.y * r.z) - (l.z * r.y),
+			y: (l.z * r.x) - (l.x * r.z),
+			z: (l.x * r.y) - (l.y * r.x),
 		}
 	}
 
@@ -53,7 +53,7 @@ impl Vec3 {
 		let bz = ((axis.x * self.y) - (axis.y * self.x)) * sin_t;
 
 		// c = axis ( axis . v ) (1 - cos(t))
-		let scale = self.dot(axis) * (1.0 - cos_t);
+		let scale = Vec3::dot(*self, axis) * (1.0 - cos_t);
 		let cx = axis.x * scale;
 		let cy = axis.y * scale;
 		let cz = axis.z * scale;
@@ -73,18 +73,6 @@ impl Vec3 {
 			y: y * inv_length,
 			z: z * inv_length,
 		}
-	}
-
-	pub fn normalize(&mut self) -> Vec3 {
-		let inv_length = 1.0 / self.length();
-		let (x, y, z) = (self.x, self.y, self.z);
-		self.set(
-			x * inv_length,
-			y * inv_length,
-			z * inv_length,
-		);
-
-		*self
 	}
 
 	pub fn length(&self) -> f32 {

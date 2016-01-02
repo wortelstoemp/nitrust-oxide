@@ -24,121 +24,11 @@ use std::ptr;
 use std::str;
 use std::ffi::CString;
 
-use core::*;
-
 mod framework;
 use framework::math::{Mat4x4, Quaternion, Vec3, Vec4};
 use framework::graphics::{Texture, InternalShader, Shader, Uniform};
+use framework::core::{Camera, Clock, Transform};
 
-mod core {
-	use time::PreciseTime;
-	use framework::math::{ Mat4x4, Quaternion, Vec3, Vec4 };
-
-	pub struct Clock {
-		current: PreciseTime,
-		last: PreciseTime,
-		absolute: f32,
-		delta: f32,
-		fixed: f32,
-		accumulator: f32,
-	}
-
-	impl Clock {
-		pub fn new(fps: f32) -> Clock {
-			Clock {
-				current: PreciseTime::now(),
-				last: PreciseTime::now(),
-				absolute: 0.0,
-				delta: 0.0,
-				fixed: (1.0/fps),
-				accumulator: 0.0,
-			}
-		}
-
-		pub fn accumulating(&self) -> bool {
-			(self.accumulator >= self.fixed)
-		}
-
-		pub fn accumulate(&mut self) {
-			self.accumulator -= self.fixed;
-			self.absolute += self.fixed;
-		}
-
-		pub fn delta(&mut self) -> f32 {
-			self.current = PreciseTime::now();
-			// self.current - self.last
-			self.delta = match self.last.to(self.current).num_nanoseconds() {
-				Some(value) => ((value as f32) / 1.0e6),
-				None => 0.0,
-			};
-
-			if self.delta > self.fixed {	// > 0.25 alternative?
-				self.delta = self.fixed;	// = 0.25 alternative?
-			}
-
-			self.last = self.current;
-			self.accumulator += self.delta;
-
-			self.delta
-		}
-
-		pub fn start(&mut self) {
-			self.last = PreciseTime::now();
-		}
-
-		pub fn interpolation_alpha(&self) -> f32 {
-			(self.accumulator / self.fixed)
-		}
-	}
-
-	pub struct Transform {
-		position: Vec3,
-		scale: Vec3,
-		orientation: Quaternion,
-	}
-
-	impl Transform {
-		pub fn move_towards(&mut self, direction: Vec3, amount: f32) {
-			self.position = self.position + direction.normalized() * amount;
-		}
-
-		pub fn rotate(&mut self, axis: Vec3, angle: f32) {
-			self.orientation.rotate(axis, angle);
-		}
-
-		pub fn model(&self) -> Mat4x4 {
-			Mat4x4::scale(self.scale) *
-			Quaternion::matrix(self.orientation) *
-			Mat4x4::translation(self.position)
-		}
-
-		pub fn mvp(&self, camera: CameraComponent) -> Mat4x4 {
-			camera.view_projection * self.model()
-		}
-	}
-	
-	pub struct CameraComponent {
-		view_projection: Mat4x4,
-	}
-
-	impl CameraComponent {
-		fn new_ortho(transform: Transform,
-		width: u32, height: u32, z_near: f32, z_far: f32) -> CameraComponent {
-			CameraComponent {
-				view_projection:
-					Mat4x4::ortho(0.0, width as f32, 0.0, height as f32, z_near, z_far),
-			}
-		}
-
-		fn new_perspective(transform: Transform, 
-		fovy: f32, width: u32, height: u32, z_near: f32, z_far: f32) -> CameraComponent {
-			CameraComponent {
-				view_projection:
-					Mat4x4::perspective(fovy, width as f32 / height as f32, z_near, z_far),
-			}
-		}
-	}
-}
 
 // Shaders
 // ________________________________________________________________________________________________
@@ -180,13 +70,9 @@ impl<'a> Shader for BasicShader<'a> {
 		self.shader.end();
 	}
 
-	fn update_uniforms(&self, dt: f32) {
+	fn update_uniforms(&self, transform: &Transform, camera: &Camera, dt: f32) {
 		// Unique implementation
-		let scale = Mat4x4::scale(Vec3{ x: 0.5, y: 0.5, z: 0.5 });
-		let rotation = Quaternion::matrix(Quaternion::new().rotate(Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0));
-		let translation = Mat4x4::translation(Vec3{ x: 0.5, y: -0.5, z: 0.0 });
-		let transform = translation * rotation * scale;
-		self.shader.set_mat4x4(&self.uniform_transform, &transform);
+		self.shader.set_mat4x4(&(self.uniform_transform), &transform.model()); // TODO:  &transform.mvp(camera)
 	}
 }
 
@@ -223,7 +109,7 @@ mod engine {
 			}
 
 			pub fn send(&self, msg: Message) {
-
+				
 			}
 		}
 		pub enum Message {
@@ -233,7 +119,7 @@ mod engine {
 			None,
 		}
 
-		pub trait Messager {
+		pub trait Messenger {
 			fn send(&self, msg: Message);
 			//fn recv(&self);
 			fn handle_message(&self, msg: Message);
@@ -274,7 +160,7 @@ mod engine {
 			}
 		}
 
-		impl<'a> Messager for GraphicsSystem<'a> {
+		impl<'a> Messenger for GraphicsSystem<'a> {
 			fn send(&self, msg: Message) {
 				self.message_system.send(msg);
 			}
@@ -293,10 +179,10 @@ mod engine {
 // Quad
 static VERTICES: [GLfloat; 32] = [
 	// Positions		Colors			Texture Coordinates
-	0.5, 0.5, 0.0,		1.0, 0.0, 0.0,	1.0, 1.0,			// Top Right
-	-0.5, 0.5, 0.0,		1.0, 1.0, 0.0,	0.0, 1.0,			// Top Left
-	-0.5, -0.5, 0.0,	0.0, 1.0, 0.0,	0.0, 0.0,			// Bottom Left
-	0.5, -0.5, 0.0,		0.0, 0.0, 1.0,	1.0, 0.0			// Bottom Right
+	0.5, 0.5, 0.0,		1.0, 1.0, 1.0,	1.0, 1.0,			// Top Right
+	-0.5, 0.5, 0.0,		1.0, 1.0, 1.0,	0.0, 1.0,			// Top Left
+	-0.5, -0.5, 0.0,	1.0, 1.0, 1.0,	0.0, 0.0,			// Bottom Left
+	0.5, -0.5, 0.0,		1.0, 1.0, 1.0,	1.0, 0.0			// Bottom Right
 ];
 
 static INDICES: [GLuint; 6] = [
@@ -325,7 +211,7 @@ fn main() {
 	gl_attr.set_blue_size(8);
 	gl_attr.set_alpha_size(8);
 	gl_attr.set_stencil_size(8);
-	gl_attr.set_multisample_samples(8); // 8x MSAA
+	gl_attr.set_multisample_samples(4); // 4x MSAA
 	gl_attr.set_context_version(3 as u8, 3 as u8); // OpenGL 3.3
 	gl_attr.set_context_profile(GLProfile::Core);
 
@@ -413,6 +299,20 @@ fn main() {
 		gl::BlendFunc(gl::SRC_ALPHA, gl::ONE_MINUS_SRC_ALPHA);
 	}
 
+    let transform = Transform { 
+            position: Vec3{ x: 0.0, y: 0.0, z: 0.0 },
+            scale: Vec3{ x: 0.5, y: 0.5, z: 0.5 },
+            orientation: Quaternion::new().rotate(&Vec3{ x: 0.0, y: 0.0, z: 1.0 }, 45.0)
+    };
+    
+    let camera_transform = Transform { 
+            position: Vec3{ x: 0.0, y: 0.0, z: 0.0 },
+            scale: Vec3{ x: 1.0, y: 1.0, z: 1.0 },
+            orientation: Quaternion::new().rotate(&Vec3{ x: 0.0, y: 1.0, z: 0.0 }, 180.0)
+    };
+    
+    let camera = Camera::new_ortho(&camera_transform, 800, 600, 0.1, 100.0);
+    
 	let mut texture = Texture::new();
 	texture.load("./assets/textures/board_alpha.dds");
 
@@ -461,7 +361,7 @@ fn main() {
 
 			texture.begin();
 			shader.begin();
-			shader.update_uniforms(dt);
+			shader.update_uniforms(&transform, &camera, dt);
 			gl::BindVertexArray(vao);
 			gl::DrawElements(gl::TRIANGLES, 6, gl::UNSIGNED_INT, 0 as *const _);
 			shader.end();

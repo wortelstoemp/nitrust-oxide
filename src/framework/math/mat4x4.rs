@@ -1,9 +1,9 @@
 use std::f32::consts::PI;
 use std::ops::*;
 
-use framework::math::Quaternion;
-use framework::math::Vec3;
+use framework::math::{Quaternion, Vec3};
 
+#[derive(Copy, Clone)]
 pub struct Mat4x4 {
 	pub m: [f32; 16],
 }
@@ -105,8 +105,8 @@ impl Mat4x4 {
 
 	pub fn look_at(eye: Vec3, look: Vec3, up: Vec3) -> Mat4x4 {
 		let l = look.normalized();
-		let r = look.cross(up);
-		let u = l.cross(r).normalized();
+		let r = Vec3::cross(look, up);
+		let u = Vec3::cross(l, r).normalized();
 
 		//	Calculation of camera matrix:
 		//		Orientationmatrix		*	  Translationmatrix
@@ -116,9 +116,9 @@ impl Mat4x4 {
 		//	|0 		  0 	0 		 1|		|0 0 0  1		|
 
 		Mat4x4 { m: [
-			r.x, u.x, -l.x, -r.x * eye.x - u.x *eye.y + l.x *eye.z,
-			r.y, u.y, -l.y, -r.y * eye.x - u.y *eye.y + l.y *eye.z,
-			r.z, u.z, -l.z, -r.z * eye.x - u.z *eye.y + l.z *eye.z,
+			r.x, u.x, -l.x, -r.x * eye.x - u.x * eye.y + l.x * eye.z,
+			r.y, u.y, -l.y, -r.y * eye.x - u.y * eye.y + l.y * eye.z,
+			r.z, u.z, -l.z, -r.z * eye.x - u.z * eye.y + l.z * eye.z,
 			0.0, 0.0, 0.0, 1.0,
 		]}
 	}

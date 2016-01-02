@@ -9,12 +9,13 @@ use std::io::prelude::*;
 use std::ptr;
 
 use framework::math::{Mat4x4, Vec4};
+use framework::core::{Camera, Transform};
 
 pub trait Shader {
 	fn init(&mut self);
 	fn begin(&self);
 	fn end(&self);
-	fn update_uniforms(&self, dt: f32);
+	fn update_uniforms(&self, transform: &Transform, camera: &Camera, dt: f32);
 }
 
 pub struct Uniform<'a> {
