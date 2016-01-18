@@ -1,0 +1,16 @@
+- Make Quaternion more mathematiccaly consistent:
+	- Try to transpose Quaternion::matrix() return value like on https://en.wikipedia.org/wiki/Quaternions_and_spatial_rotation#Quaternion-derived_rotation_matrix final result.
+	- Try to adapt Quaternion::from_euler() en Quaternion::from_axis() to this.
+
+- Input & move camera
+
+- Make SimpleSprite object.
+
+- Make GraphicsSystem
+- Make InputSystem
+- Make LogicSystem
+- Make Game with Scene and divide data to subsystems.
+- Make MessageSystem so above systems can communicate.
+
+
+- Program Breakout.

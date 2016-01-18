@@ -3,6 +3,7 @@
 // When I get basic OpenGL 3.3 running this will evolve
 // into an earlier renderer I wrote in LWJGL back in the day.
 // Everything will be organized in different modules and files.
+// Also remove .unwrap() and do proper error handling.
 
 extern crate gl;
 extern crate libc;
@@ -78,8 +79,8 @@ impl<'a> Shader for BasicShader<'a> {
 
 // Try to write everything in a modular way
 
-mod engine {
-	mod core {
+pub mod engine {
+	pub mod core {
 		pub trait CoreSystem {
 			fn init(&self);
 			fn update(&self, dt: f32);
@@ -87,42 +88,54 @@ mod engine {
 		}
 	}
 
-	mod messaging {
+	pub mod messaging {
 		use engine::graphics::GraphicsSystem;
 		use std::sync::mpsc::{ channel, Sender, Receiver };
 
-		pub struct MessageSystem<'a> {
-			sender: Sender<Message>,
-			receiver: Receiver<Message>,
-			graphics_system: Option<&'a GraphicsSystem<'a>>,
-		}
-
-		impl<'a> MessageSystem<'a> {
-			pub fn new() -> MessageSystem<'a> {
-				let (sender, receiver) = channel();
-				MessageSystem {
-					sender: sender,
-					receiver: receiver,
-					graphics_system: None::<&'a GraphicsSystem<'a>>,
-				}
-
-			}
-
-			pub fn send(&self, msg: Message) {
-				
-			}
-		}
+// 		pub struct MessageSystem<'a> {
+// 			sender: Sender<Message>,
+// 			receiver: Receiver<Message>,
+// 			pub graphics_system: Option<&'a GraphicsSystem<'a>>,
+// 		}
+// 
+// 		impl<'a> MessageSystem<'a> {
+// 			pub fn new() -> MessageSystem<'a> {
+// 				let (sender, receiver) = channel();
+// 				MessageSystem {
+// 					sender: sender,
+// 					receiver: receiver,
+// 					graphics_system: None::<&'a GraphicsSystem<'a>>,
+// 				}
+// 
+// 			}
+//             
+//             pub fn borrow_graphics_system(&mut self, graphics_system: Option<&'a GraphicsSystem<'a>>) {
+//                 self.graphics_system = graphics_system;
+//             }
+// 
+// 			pub fn send(&self, msg: Message) {
+// 				self.sender.send(msg).unwrap();
+// 			}
+//             
+//             pub fn recv(&self) -> Message {
+//                 self.receiver.recv().unwrap()
+//             }
+// 		}
+        
+        // Move out, to game dependant part 
 		pub enum Message {
 			Quit,
-			Test,
-			TestData{ x: f32, y: f32 },
+            Console_Done,
+            Graphics_Change_Color{r: u8, g: u8, b: u8},
+			Graphics_Test,
+			Graphics_TestData{ x: f32, y: f32 },
 			None,
 		}
 
 		pub trait Messenger {
-			fn send(&self, msg: Message);
+			fn send(&self, sender: &Sender<Message>, msg: Message);
 			//fn recv(&self);
-			fn handle_message(&self, msg: Message);
+			fn handle_message(&self, msg: &Message);
 		}
 	}
 
@@ -138,43 +151,108 @@ mod engine {
     // //});
     // println!("{}", rx.recv().unwrap());
 
-	mod graphics {
+	pub mod graphics {
 		use engine::core::CoreSystem;
 		use engine::messaging::*;
+        use std::sync::mpsc::Sender;
 
-		pub struct GraphicsSystem<'a> {
-			message_system: &'a MessageSystem<'a>,	// use: message_system.post_message(msg);
-		}
+		pub struct GraphicsSystem;//<'a> {
+		// 	message_system: &'a Option<MessageSystem<'a>>,	// use: message_system.send(msg);
+		// }
+        
+        // impl<'a> GraphicsSystem<'a> {
+        //     // pub fn new() -> GraphicsSystem<'a> {
+        //     //     GraphicsSystem {
+        //     //         message_system: &None::<MessageSystem<'a>>,
+        //     //     }
+        //     // }
+        //     
+        //     // pub fn borrow_message_system(&mut self, message_system: &'a Option<MessageSystem<'a>>) {
+        //     //     self.message_system = message_system;
+        //     // }
+        // }
 
-		impl<'a> CoreSystem for GraphicsSystem<'a> {
-			fn init(&self) {
-				println!("Init");
+		impl CoreSystem for GraphicsSystem {
+		    fn init(&self) {
+				println!("Init renderer");
 			}
 
 			fn update(&self, dt: f32) {
-				println!("Update");
+				println!("Update renderer");
 			}
 
 			fn shutdown(&self) {
-				println!("Shutdown");
+				println!("Shutdown renderer");
 			}
 		}
 
-		impl<'a> Messenger for GraphicsSystem<'a> {
-			fn send(&self, msg: Message) {
-				self.message_system.send(msg);
+		impl Messenger for GraphicsSystem {
+			fn send(&self, sender: &Sender<Message>, msg: Message) {
+				sender.send(msg).unwrap();
 			}
 
-			fn handle_message(&self, msg: Message) {
+			fn handle_message(&self, msg: &Message) {
 				match msg {
-					Message::TestData{x, y} => { println!("Data: {}, {}", x, y) },
-					Message::Test | Message::Quit => { println!("Quit") },
+					&Message::Graphics_TestData{x, y} => { println!("Data: {}, {}", x, y) },
+                    &Message::Graphics_Change_Color{r, g, b} => { println!("Changed Color to: [{}, {}, {}]", r, g, b) },
+					&Message::Graphics_Test | &Message::Quit => { println!("Quit") },
 					_ => {}
 				}
 			}
 		}
 	}
+    
+    pub mod console {
+        use engine::core::CoreSystem;
+        use engine::messaging::*;
+        use std::sync::mpsc::Sender;
+        
+        pub struct ConsoleSystem;//<'a> {
+        //     pub message_system: Option<&'a MessageSystem<'a>>,
+        // }
+        
+        // impl<'a> ConsoleSystem<'a> {
+        //     pub fn new() -> ConsoleSystem<'a> {
+        //         ConsoleSystem {
+        //             message_system: None::<&'a MessageSystem<'a>>,
+        //         }
+        //     }
+        //     
+        //     // pub fn borrow_message_system(&mut self, message_system: Option<&'a MessageSystem<'a>>) {
+        //     //     self.message_system = message_system;
+        //     // }
+        // } 
+        
+        impl CoreSystem for ConsoleSystem {
+            fn init(&self) {
+                println!("Init console");                
+            }
+            
+            fn update(&self, dt: f32) {
+				println!("Update console");
+			}
+
+			fn shutdown(&self) {
+				println!("Shutdown console");
+			}
+        }
+        
+        impl Messenger for ConsoleSystem {
+			fn send(&self, sender: &Sender<Message>, msg: Message) {
+				sender.send(msg).unwrap();
+			}
+
+			fn handle_message(&self, msg: &Message) {
+				match msg {
+					&Message::Console_Done => { println!("Done!") },
+					_ => {}
+				}
+			}
+		}
+    }
 }
+
+// TODO: Make SimpleSprite struct
 
 // Quad
 static VERTICES: [GLfloat; 32] = [
@@ -189,6 +267,14 @@ static INDICES: [GLuint; 6] = [
 	0, 1, 2,   // First Triangle
 	2, 3, 0	   // Second Triangle
 ];
+
+use engine::console::ConsoleSystem;
+use engine::core::CoreSystem;
+use engine::graphics::GraphicsSystem;
+use engine::messaging::*;
+
+use std::sync::mpsc::channel;
+use std::thread;
 
 fn main() {
 	// Initialize SDL stuff (later in WindowsSystem)
@@ -328,11 +414,38 @@ fn main() {
 	let mut running = true;
 	let mut dt: f32 = 0.0;
 	let mut clock = Clock::new(60.0);
-	clock.start();
+	
+    // Test communication: Threads are necessary to avoid blocking by receive: every send needs recv!
+    // Solution: use try_recv (non-blocking)
+    // Gives Error when empty.
+    // TODO: resolve Empty error.
+    // OR: use iter()
+    
+    //let mut message_system = MessageSystem::new();
+    let (sender, receiver) = channel();
+    
+    let graphics_system = GraphicsSystem;
+    graphics_system.init();
+    let console_system = ConsoleSystem;
+    console_system.init();
+    
+    clock.start();
 
 	while running {
 		dt = clock.delta();
-
+         
+        // Polling messages from channel until empty
+        loop {
+            match receiver.try_recv() {
+                Ok(msg) => {
+                     console_system.handle_message(&msg);
+                     graphics_system.handle_message(&msg);
+                },
+                
+                Err(e) => break,
+            }
+        }
+        
 		// Input
 		for event in event_pump.poll_iter() {
 			match event {
@@ -340,6 +453,14 @@ fn main() {
 				Event::KeyDown { keycode: Some(Keycode::Escape), .. } => {
 					running = false;
 				},
+                
+                // Messaging test
+                Event::KeyDown { keycode: Some(Keycode::Up), .. } => {
+                    let msg = Message::Graphics_Change_Color{r: 255, g: 255, b: 255,};
+                    println!("Sending change color...");
+                    console_system.send(&sender, msg);  
+                },
+                
 				_ => {}
 			}
 		}
